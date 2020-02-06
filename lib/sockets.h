@@ -1,3 +1,6 @@
+#ifndef SOCKETS_H
+#define SOCKETS_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
@@ -23,3 +26,5 @@ int open_tcp_socket(int port, char* ip, int max_pending_conections);
 * ARGS_OUT: void
 ********/
 void close_socket(int sockfd);
+
+#endif
