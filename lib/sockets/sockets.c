@@ -1,4 +1,4 @@
-#include "lib/sockets.h"
+#include "sockets.h"
 
 int open_tcp_socket(int port, int max_pending_conections) {
     int sockfd;
