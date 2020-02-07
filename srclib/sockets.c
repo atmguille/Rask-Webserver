@@ -36,7 +36,7 @@ int accept_connection(int sockfd) {
     int clientfd;
 
     if (sockfd < 0) {
-        perror("Bad socket descriptor when accepting conexion");
+        perror("Bad socket descriptor when accepting connection");
         return EXIT_FAILURE;
     }
 
@@ -80,7 +80,7 @@ ssize_t my_recv(int clientfd, void *buf, size_t len) {
 }
 
 void close_connection(int clientfd) {
-    close(clientfd)
+    close(clientfd);
 }
 
 void close_socket(int sockfd) {
