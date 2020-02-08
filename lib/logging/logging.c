@@ -1,4 +1,5 @@
 #include <syslog.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -45,23 +46,23 @@ const char* DEBUG = "DEBUG";
 const char* UNKNOWN = "UNKNOWN";
 
 const char* get_priority_name(int priority) {
-     switch (priority) {
-         case LOG_CRIT:
-             return CRITICAL;
-         case LOG_ERR:
-             return ERROR;
-         case LOG_WARNING:
-             return WARNING;
-         case LOG_INFO:
-             return INFO;
-         case LOG_DEBUG:
-             return DEBUG;
-         default:
-             return UNKNOWN;
-     }
+    switch (priority) {
+        case LOG_CRIT:
+            return CRITICAL;
+        case LOG_ERR:
+            return ERROR;
+        case LOG_WARNING:
+            return WARNING;
+        case LOG_INFO:
+            return INFO;
+        case LOG_DEBUG:
+            return DEBUG;
+        default:
+            return UNKNOWN;
+    }
 }
 
-void print_priority(const char* string, int priority, bool use_stderr) {
+void print_priority(int priority, bool use_stderr, const char* format, va_list args) {
     const char* priority_name;
 
     // Don't log messages less important than the limit
@@ -73,30 +74,41 @@ void print_priority(const char* string, int priority, bool use_stderr) {
 
     if ((use_stderr && can_use_stderr()) || (!use_stderr && can_use_stdout())) {
         FILE* f = use_stderr? stderr: stdout;
-        fprintf(f, "[%s] %s: %s\n", get_time(), priority_name, string);
+        fprintf(f, "[%s] %s: ", get_time(), priority_name);
+        vfprintf(f, format, args);
     } else {
-        syslog(priority, "[%s] %s", priority_name, string);
+        syslog(priority, "[%s] %s", priority_name, format);
     }
 }
 
-void print_critical(const char* string) {
-    print_priority(string, LOG_CRIT, true);
+void print_critical(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print_priority(LOG_CRIT, true, format, args);
 }
 
-void print_error(const char* string) {
-    print_priority(string, LOG_ERR, true);
+void print_error(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print_priority(LOG_ERR, true, format, args);
 }
 
-void print_warning(const char* string) {
-    print_priority(string, LOG_WARNING, false);
+void print_warning(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print_priority(LOG_WARNING, false, format, args);
 }
 
-void print_info(const char* string) {
-    print_priority(string, LOG_INFO, false);
+void print_info(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print_priority(LOG_INFO, false, format, args);
 }
 
-void print_debug(const char* string) {
-    print_priority(string, LOG_DEBUG, false);
+void print_debug(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print_priority(LOG_DEBUG, false, format, args);
 }
 
 void set_logging_limit(int priority) {
