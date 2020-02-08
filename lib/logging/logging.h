@@ -38,4 +38,4 @@ void print_debug(const char* string);
  */
 void set_logging_limit(int priority);
 
-#endif
+#endif // LOGGING_H
