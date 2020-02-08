@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "daemon.h"
-
 void daemon_init(const char* daemon_name) {
     int i;
     pid_t pid;
