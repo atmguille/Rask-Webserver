@@ -76,6 +76,7 @@ void print_priority(int priority, bool use_stderr, const char* format, va_list a
         FILE* f = use_stderr? stderr: stdout;
         fprintf(f, "[%s] %s: ", get_time(), priority_name);
         vfprintf(f, format, args);
+        fprintf(f, "\n");
     } else {
         syslog(priority, "[%s] %s", priority_name, format);
     }
