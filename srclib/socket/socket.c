@@ -50,6 +50,12 @@ int socket_open(int port, int max_pending_connections) {
         return ERROR;
     }
 
+    // Enable SO_REUSEADDR
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == ERROR) {
+        print_error("failed to set socket's options: %s", strerror(errno));
+        return ERROR;
+    }
+
     bzero(&addr, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
