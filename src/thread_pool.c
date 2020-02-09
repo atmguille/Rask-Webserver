@@ -14,12 +14,12 @@ ThreadPool* t_pool_ini(int sockfd) {
 
     t_pool = (ThreadPool *)malloc(sizeof(ThreadPool));
     if (t_pool == NULL) {
-        syslog(LOG_ERROR, "Error allocating memory for Thread Pool");
+        print_error("Error allocating memory for Thread Pool");
         return NULL;
     }
 
     if (pthread_mutex_init(&(t_pool->shared_mutex), NULL) != 0) {
-        syslog(LOG_ERROR, "Error initializing mutex");
+        print_error("Error initializing mutex");
         free(t_pool);
         return NULL;
     }
@@ -27,7 +27,7 @@ ThreadPool* t_pool_ini(int sockfd) {
     t_pool->n_threads = THREADS;
     t_pool->threads   = (pthread_t *)malloc(t_pool->n_threads * sizeof(pthread_t));
     if (t_pool->threads == NULL) {
-        syslog(LOG_ERROR, "Error allocating memory for the list of threads");
+        print_error("Error allocating memory for the list of threads");
         pthread_mutex_destroy(&t_pool->shared_mutex);
         free(t_pool);
         return NULL;
@@ -38,7 +38,7 @@ ThreadPool* t_pool_ini(int sockfd) {
 
     for (i = 0; i < t_pool->n_threads; i++) {
         if (pthread_create(&t_pool->threads[i], NULL, _thread_exec, (void *) t_pool) != 0) {
-            syslog(LOG_ERROR, "Error initializing threads");
+            print_error("Error initializing threads");
             pthread_mutex_destroy(&t_pool->shared_mutex);
             free(t_pool->threads);
             free(t_pool);
