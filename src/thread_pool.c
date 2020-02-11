@@ -95,7 +95,7 @@ void *_thread_exec(void *args) {
             pthread_exit(NULL);
         }
     }
-    pthread_cleanup_pop(1); // Unreachable line, but needed so pthread_cleanup_push do loop is closed when compiling
+    pthread_cleanup_pop(1); // Unreachable line, but needed so pthread_cleanup_push do-while loop is closed when compiling
 }
 
 void _create_more_threads(ThreadPool *t_pool) {
