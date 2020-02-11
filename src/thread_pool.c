@@ -45,7 +45,7 @@ void *_thread_exec(void *args) {
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
-    pthread_cleanup_push(_working_thread_clean_up, (void *)current_thread); // TODO: POR QUÉ NO COMPILA CON ESTA LINEA?????
+    pthread_cleanup_push(_working_thread_clean_up, (void *)current_thread);
 
     act.sa_flags = 0;
     act.sa_handler = _sig_handler;
@@ -95,7 +95,7 @@ void *_thread_exec(void *args) {
             pthread_exit(NULL);
         }
     }
-    pthread_cleanup_pop(1);
+    pthread_cleanup_pop(1); // Unreachable line, but needed so pthread_cleanup_push do loop is closed when compiling
 }
 
 void _create_more_threads(ThreadPool *t_pool) {
