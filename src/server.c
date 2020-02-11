@@ -1,10 +1,11 @@
-#include "lib/sockets/sockets.h"
-#include "lib/thread_pool/thread_pool.h"
+#include "../srclib/socket/socket.h"
+#include "../includes/thread_pool.h"
+#include <unistd.h>
 
 int main() {
-    int port = 4444;
-    int sockfd = open_tcp_socket(port, 10);
+    int port = 8080;
+    int sockfd = socket_open(port, 10);
     ThreadPool* t_pool = t_pool_ini(sockfd);
-    sleep(10);
+    sleep(100);
     t_pool_destroy(t_pool);
 }
