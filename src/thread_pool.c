@@ -17,6 +17,7 @@ typedef struct _thread {
 typedef struct _threadPool {
     pthread_mutex_t shared_mutex;       // Mutex to protect shared variables
     pthread_t       master_thread;      // Master thread that will dynamically create or destroy threads
+    pthread_mutex_t master_mutex;       // Mutex to prevent master and father thread from accessing to n_threads concurrently
     int             n_threads;          // Number of threads currently created
     int             executing_threads;  // Number of threads that are currently executing something
     _thread         *threads;           // Array of working threads
@@ -44,7 +45,7 @@ void *_thread_exec(void *args) {
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
-    //pthread_cleanup_push(_working_thread_clean_up, (void *)current_thread); // TODO: POR QUÉ NO COMPILA CON ESTA LINEA?????
+    pthread_cleanup_push(_working_thread_clean_up, (void *)current_thread); // TODO: POR QUÉ NO COMPILA CON ESTA LINEA?????
 
     act.sa_flags = 0;
     act.sa_handler = _sig_handler;
@@ -94,13 +95,12 @@ void *_thread_exec(void *args) {
             pthread_exit(NULL);
         }
     }
+    pthread_cleanup_pop(1);
 }
 
 void _create_more_threads(ThreadPool *t_pool) {
     int i;
     int alive_threads = ceil(1.5 * t_pool->n_threads); //TODO: cuantos creamos cada vez?
-
-    printf("Alive threads %d\n", alive_threads);
 
     if (t_pool->n_threads == MAX_THREADS) {
         print_info("N_THREADS is already set to the maximum...");
@@ -111,16 +111,10 @@ void _create_more_threads(ThreadPool *t_pool) {
         alive_threads = MAX_THREADS;
     }
 
-    printf("Alive threads %d\n", alive_threads);
-
-    printf("N_THREADS: %d\n", t_pool->n_threads);
-
-    printf("%d\n", t_pool->threads[i]);
-
     for (i = t_pool->n_threads; i < alive_threads; i++) {
         t_pool->threads[i].__owner = t_pool;
         t_pool->threads[i].clientfd = -1;
-        if (pthread_create(&t_pool->threads[i].thread, NULL, _thread_exec, (void *) t_pool) != 0) {
+        if (pthread_create(&t_pool->threads[i].thread, NULL, _thread_exec, (void *) &t_pool->threads[i]) != 0) {
             print_error("Error creating %d thread. Destroying pool...", i); // TODO: demasiado exagerado? Pero es que se jode la estructura y quedan huecos...
             t_pool->n_threads = i - 1; // Update created threads
             t_pool_destroy(t_pool);
@@ -155,11 +149,13 @@ void *_master_exec(void *args) {
 
     while(true) {
         sleep(10);
-        printf("MASTER\n");
+
         pthread_mutex_lock(&t_pool->shared_mutex);
         executing_threads = t_pool->executing_threads;
         pthread_mutex_unlock(&t_pool->shared_mutex);
-        // TODO IMPORTANTE: evitar que se liberen los threads en t_pool_destroy si el master entra por aquí
+
+        pthread_mutex_lock(&t_pool->master_mutex);
+
         if (executing_threads > (0.75 * t_pool->n_threads)) { // TODO: configurar rango
             print_info("Too many threads executing (%d). Creating more...", executing_threads);
             _create_more_threads(t_pool);
@@ -167,6 +163,8 @@ void *_master_exec(void *args) {
             print_info("Too few threads executing (%d), killing some...", executing_threads);
             _destroy_some_threads(t_pool);
         }
+
+        pthread_mutex_unlock(&t_pool->master_mutex);
     }
 }
 
@@ -181,7 +179,14 @@ ThreadPool* t_pool_ini(int sockfd) {
     }
 
     if (pthread_mutex_init(&(t_pool->shared_mutex), NULL) != 0) {
-        print_error("Error initializing mutex");
+        print_error("Error initializing shared mutex");
+        free(t_pool);
+        return NULL;
+    }
+
+    if (pthread_mutex_init(&(t_pool->master_mutex), NULL) != 0) {
+        print_error("Error initializing master mutex");
+        pthread_mutex_destroy(&t_pool->shared_mutex);
         free(t_pool);
         return NULL;
     }
@@ -189,6 +194,7 @@ ThreadPool* t_pool_ini(int sockfd) {
     if (pthread_create(&t_pool->master_thread, NULL, _master_exec, (void *) t_pool) != 0) {
         print_error("Error initializing master_thread");
         pthread_mutex_destroy(&t_pool->shared_mutex);
+        pthread_mutex_destroy(&t_pool->master_mutex);
         free(t_pool);
         return NULL;
     }
@@ -198,6 +204,7 @@ ThreadPool* t_pool_ini(int sockfd) {
     if (t_pool->threads == NULL) {
         print_error("Error allocating memory for the list of threads");
         pthread_mutex_destroy(&t_pool->shared_mutex);
+        pthread_mutex_destroy(&t_pool->master_mutex);
         free(t_pool->threads);
         pthread_cancel(t_pool->master_thread);
         free(t_pool);
@@ -222,13 +229,16 @@ ThreadPool* t_pool_ini(int sockfd) {
 
 void t_pool_destroy(ThreadPool* t_pool) {
     int i;
-    printf("Lets clean!!!\n");
 
+    pthread_mutex_lock(&t_pool->master_mutex); // Wait until master thread has created or deleted threads
+    pthread_cancel(t_pool->master_thread);
     for (i = 0; i < t_pool->n_threads; i++) {
         pthread_cancel(t_pool->threads[i].thread);
     }
+    pthread_mutex_unlock(&t_pool->master_mutex); // Not necessarily needed
+
     pthread_mutex_destroy(&t_pool->shared_mutex);
-    pthread_cancel(t_pool->master_thread);
+    pthread_mutex_destroy(&t_pool->master_mutex);
     free(t_pool->threads);
     socket_close(t_pool->sockfd);
     free(t_pool);
