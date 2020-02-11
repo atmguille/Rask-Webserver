@@ -1,11 +1,8 @@
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
 
-#include "pthread.h"
-#include "stdbool.h"
-#include "lib/sockets/sockets.h"
-
-#define THREADS 10 // TODO: Temporary solution waiting for determining n_threads per process
+#define START_THREADS 10 // TODO: Temporary solution waiting for determining n_threads per process
+#define MAX_THREADS 100
 
 /********
 * STRUCT: ThreadPool
