@@ -230,7 +230,7 @@ ThreadPool* t_pool_ini(int sockfd) {
 void t_pool_destroy(ThreadPool* t_pool) {
     int i;
 
-    pthread_mutex_lock(&t_pool->master_mutex); // Wait until master thread has created or deleted threads
+    pthread_mutex_lock(&t_pool->master_mutex); // Wait until master thread has created or deleted threads, so n_threads is updated to its real value
     pthread_cancel(t_pool->master_thread);
     for (i = 0; i < t_pool->n_threads; i++) {
         pthread_cancel(t_pool->threads[i].thread);
