@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <confuse.h>
 
-ServerAttributes *load_server_config(char *config_file_name) {
+ServerAttributes *server_attr_load(char *config_file_name) {
     ServerAttributes *server_attr;
     cfg_t *cfg;
     /* Although the macro used to specify an integer option is called

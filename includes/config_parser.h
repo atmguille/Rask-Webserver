@@ -12,7 +12,7 @@ typedef struct {
  * Fills the struct with the fields found in config_file
  * @param config_file_name
  */
-ServerAttributes *load_server_config(char *config_file_name);
+ServerAttributes *server_attr_load(char *config_file_name);
 /**
  * Frees struct as well as the strings
  * @param server_attr
