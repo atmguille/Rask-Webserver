@@ -16,9 +16,15 @@ typedef struct _ThreadPool ThreadPool;
 ThreadPool* thread_pool_ini(int socket_fd, int max_threads);
 
 /**
- * Destroys a thread-pooled server
+ * Destroys a thread-pooled server, not waiting for the threads to finish their tasks before killing them
  * @param pool
  */
-void thread_pool_destroy(ThreadPool *pool);
+void thread_pool_hard_destroy(ThreadPool *pool);
+
+/**
+ * Destroys a thread-pooled server, waiting for the threads to finish their tasks before killing them
+ * @param pool
+ */
+void thread_pool_soft_destroy(ThreadPool *pool);
 
 #endif
