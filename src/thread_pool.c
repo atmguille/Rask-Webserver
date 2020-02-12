@@ -30,6 +30,7 @@ ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
 
     if (max_threads < 1) {
         print_error("max_threads must be greater or equal to 1");
+        socket_close(socket_fd);
         return NULL;
     }
 
@@ -41,12 +42,14 @@ ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
     pool = (ThreadPool *)malloc(sizeof(ThreadPool));
     if (pool == NULL) {
         print_error("failed to allocate memory for ThreadPool");
+        socket_close(socket_fd);
         return NULL;
     }
 
     if (pthread_mutex_init(&(pool->shared_mutex), NULL) != 0) {
         print_error("failed to init shared_mutex");
         free(pool);
+        socket_close(socket_fd);
         return NULL;
     }
 
@@ -54,6 +57,7 @@ ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
         print_error("failed to init watcher_mutex");
         pthread_mutex_destroy(&pool->shared_mutex);
         free(pool);
+        socket_close(socket_fd);
         return NULL;
     }
 
@@ -64,6 +68,7 @@ ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
         pthread_mutex_destroy(&pool->watcher_mutex);
         pthread_cancel(pool->watcher_thread);
         free(pool);
+        socket_close(socket_fd);
         return NULL;
     }
 
@@ -102,12 +107,12 @@ void _soft_kill(int sig) {
 }
 
 /**
- * This function will be called when hard-killing a working thread (because of a thread_pool_destroy call)
+ * This function will be called when a working thread exits (See comment in pthread_cleanup_push)
  * @param client_fd
  */
-static void _hard_kill(void *client_fd) {
+static void _cleanup_handler(void *client_fd) {
     socket_close(*((int *)client_fd));
-    print_debug("hard killed");
+    print_debug("client_fd closed");
 }
 
 /**
@@ -124,7 +129,7 @@ void *_worker_function(void *args) {
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
-    pthread_cleanup_push(_hard_kill, (void *)&client_fd);
+    pthread_cleanup_push(_cleanup_handler, (void *)&client_fd);
 
             act.sa_flags = 0;
             act.sa_handler = _soft_kill;
@@ -145,7 +150,7 @@ void *_worker_function(void *args) {
                 sigaddset(&signal_to_block, SIGURG);
 
                 if (pthread_sigmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
-                    print_error("Error blocking signal");
+                    print_error("failed tp block signal in thread");
                     pthread_exit(NULL);
                 }
 
@@ -173,7 +178,7 @@ void *_worker_function(void *args) {
 
                 /* SIGURG is unblocked */
                 if (pthread_sigmask(SIG_UNBLOCK, &signal_to_block, &signal_prev) < 0) {
-                    print_error("Error unblocking signal");
+                    print_error("failed to unblock signal in thread");
                     return NULL;
                 }
             }
@@ -181,7 +186,7 @@ void *_worker_function(void *args) {
 }
 
 /**
- * Function that increases the number of worker threads if possible
+ * Function that increases the number of worker threads, if possible
  * @param pool
  */
 void _grow_pool(ThreadPool *pool) {
