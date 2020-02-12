@@ -1,6 +1,10 @@
+cmake_minimum_required(VERSION 3.15)
+
 project(practica1)
-set(CMAKE_C_STANDARD 11)
 
-set(SOURCE_FILES src/main.c src/daemonize.c)
+add_executable(iterative_server src/iterative_server.c srclib/logging/logging.c srclib/socket/socket.c)
 
-add_executable(practica1 ${SOURCE_FILES})
+find_package(Threads REQUIRED)
+add_executable(server src/server.c srclib/logging/logging.c srclib/socket/socket.c src/thread_pool.c)
+target_link_libraries(server ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(server m)

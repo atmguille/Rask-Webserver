@@ -1,29 +1,24 @@
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
 
-#define START_THREADS 10 // TODO: Temporary solution waiting for determining n_threads per process
-#define MAX_THREADS 100
+#define INITIAL_THREADS   4
+#define WATCHER_FREQUENCY 10    // The watcher will run every WATCHER_FREQUENCY seconds
+#define BUFFER_LEN        4096
 
-/********
-* STRUCT: ThreadPool
-* DESCRIPTION: struct containing all the needed info of the pool.
-********/
-typedef struct _threadPool ThreadPool;
+typedef struct _ThreadPool ThreadPool;
 
-/********
-* FUNCTION: ThreadPool* t_pool_ini(int sockfd)
-* ARGS_IN: int scokfd - socket file descriptor where the pool of threads will be working     
-* DESCRIPTION: initialize thread pool
-* ARGS_OUT: ThreadPool* - thread pool (NULL if something went wrong)
-********/
-ThreadPool* t_pool_ini(int sockfd);
+/**
+ * Initializes a new thread-pooled-server
+ * @param socket_fd active socket to handle the requests
+ * @param max_threads maximum number of threads that the ThreadPool will spawn
+ * @return A pointer to ThreadPool or NULL if some error occurred
+ */
+ThreadPool* thread_pool_ini(int socket_fd, int max_threads);
 
-/********
-* FUNCTION: void t_pool_destroy(ThreadPool* t_pool);
-* ARGS_IN: ThreadPool* t_pool - t_pool to destroy      
-* DESCRIPTION: destroy thread pool
-* ARGS_OUT: void
-********/
-void t_pool_destroy(ThreadPool* t_pool);
+/**
+ * Destroys a thread-pooled server
+ * @param pool
+ */
+void thread_pool_destroy(ThreadPool *pool);
 
 #endif
