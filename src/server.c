@@ -18,7 +18,7 @@ int main() {
         return 1;
     }
 
-    threadPool = thread_pool_ini(socked_fd, 8);
+    threadPool = thread_pool_ini(socked_fd, serverAttributes->max_clients);
     if (threadPool == NULL) {
         server_attr_destroy(serverAttributes);
         return 1;
