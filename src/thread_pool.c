@@ -8,238 +8,259 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-typedef struct _thread {
-    pthread_t  thread;
-    int        clientfd;
-    ThreadPool *__owner;
-} _thread;
-
-typedef struct _threadPool {
+struct _ThreadPool {
     pthread_mutex_t shared_mutex;       // Mutex to protect shared variables
-    pthread_t       master_thread;      // Master thread that will dynamically create or destroy threads
-    pthread_mutex_t master_mutex;       // Mutex to prevent master and father thread from accessing to n_threads concurrently
-    int             n_threads;          // Number of threads currently created
-    int             executing_threads;  // Number of threads that are currently executing something
-    _thread         *threads;           // Array of working threads
-    int             sockfd;             // socket file descriptor
-} ThreadPool;
+    pthread_mutex_t watcher_mutex;      // Mutex to prevent master and father thread from accessing to n_spawned_threads concurrently
+    pthread_t       watcher_thread;     // Watcher thread that will dynamically spawn or destroy threads
+    pthread_t       *threads;           // Array of working threads
+    int             n_spawned_threads;  // Number of threads spawned (can grow up to max_threads)
+    int             n_active_threads;   // Number of threads that are currently executing something (can grow up to max_threads)
+    int             max_threads;        // Maximum number of created/spawned threads
+    int             socket_fd;          // Server's file descriptor
+};
 
-static void _working_thread_clean_up(void *arg) {
-    _thread *current_thread = (_thread *)arg;
-    printf("Lets close that file descriptor!\n");
-    socket_close(current_thread->clientfd);
+void *_watcher_function(void *args);
+void *_worker_function(void *args);
+
+ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
+    ThreadPool* pool;
+    int i;
+
+    if (max_threads < 1) {
+        print_error("max_threads must be greater or equal to 1");
+        return NULL;
+    }
+
+    if (max_threads < INITIAL_THREADS) {
+        max_threads = INITIAL_THREADS;
+        print_warning("maximum number of threads set to %d", INITIAL_THREADS);
+    }
+
+    pool = (ThreadPool *)malloc(sizeof(ThreadPool));
+    if (pool == NULL) {
+        print_error("failed to allocate memory for ThreadPool");
+        return NULL;
+    }
+
+    if (pthread_mutex_init(&(pool->shared_mutex), NULL) != 0) {
+        print_error("failed to init shared_mutex");
+        free(pool);
+        return NULL;
+    }
+
+    if (pthread_mutex_init(&(pool->watcher_mutex), NULL) != 0) {
+        print_error("failed to init watcher_mutex");
+        pthread_mutex_destroy(&pool->shared_mutex);
+        free(pool);
+        return NULL;
+    }
+
+    pool->threads = (pthread_t *)malloc(max_threads * sizeof(pthread_t));
+    if (pool->threads == NULL) {
+        print_error("failed to allocate memory for the list of threads");
+        pthread_mutex_destroy(&pool->shared_mutex);
+        pthread_mutex_destroy(&pool->watcher_mutex);
+        pthread_cancel(pool->watcher_thread);
+        free(pool);
+        return NULL;
+    }
+
+    pool->n_spawned_threads = INITIAL_THREADS;
+    pool->max_threads = max_threads;
+    pool->n_active_threads = 0;
+    pool->socket_fd = socket_fd;
+
+    for (i = 0; i < pool->n_spawned_threads; i++) {
+        // Send pool via reference
+        if (pthread_create(&pool->threads[i], NULL, _worker_function, (void *) pool) != 0) {
+            print_error("failed to init thread number %d", i);
+            pool->n_spawned_threads = i; // Update threads created so thread_pool_destroy will cancel the correct ones
+            thread_pool_destroy(pool);
+            return NULL;
+        }
+    }
+
+    // Launch watcher thread, which will spawn or destroy threads dynamically
+    if (pthread_create(&pool->watcher_thread, NULL, _watcher_function, (void *) pool) != 0) {
+        print_error("failed to init watcher thread");
+        thread_pool_destroy(pool);
+        return NULL;
+    }
+
+    return pool;
 }
 
-void _sig_handler(int sig) {
-    printf("I have been killed by master thread!!!\n");
+void thread_pool_destroy(ThreadPool *pool) {
+    int i;
+
+    // Wait until master thread has created or deleted threads, so n_spawned_threads is updated to its real value
+    pthread_mutex_lock(&pool->watcher_mutex);
+    pthread_cancel(pool->watcher_thread);
+    for (i = 0; i < pool->n_spawned_threads; i++) {
+        pthread_cancel(pool->threads[i]);
+    }
+
+    for (i = 0; i < pool->n_spawned_threads; i++) {
+        pthread_join(pool->threads[i], NULL);
+    }
+
+    pthread_mutex_destroy(&pool->shared_mutex);
+    pthread_mutex_destroy(&pool->watcher_mutex);
+    free(pool->threads);
+    socket_close(pool->socket_fd);
+    free(pool);
+}
+
+/**
+ * This signal handler function will be called when soft-killing a working thread (because of server's under-usage)
+ * @param sig signal received by
+ */
+void _soft_kill(int sig) {
+    print_debug("soft killed");
     pthread_exit(NULL);
 }
 
-void *_thread_exec(void *args) {
-    _thread *current_thread = (_thread *)args;
+/**
+ * This function will be called when hard-killing a working thread (because of a thread_pool_destroy call)
+ * @param client_fd
+ */
+static void _hard_kill(void *client_fd) {
+    socket_close(*((int *)client_fd));
+    print_debug("hard killed");
+}
+
+void *_worker_function(void *args) {
+    ThreadPool *pool = (ThreadPool *)args;
     sigset_t signal_to_block;
     sigset_t signal_prev;
     struct sigaction act;
-    int test;
-    char buffer[1024]; // TODO: hardcoded size just for testing
+    char buffer[BUFFER_LEN];
+    int client_fd;
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
-    pthread_cleanup_push(_working_thread_clean_up, (void *)current_thread);
+    pthread_cleanup_push(_hard_kill, (void *)&client_fd);
 
-    act.sa_flags = 0;
-    act.sa_handler = _sig_handler;
-    if (sigaction(SIGURG, &act, NULL) < 0) {
-        print_error("Error creating signal handler");
-        pthread_exit(NULL);
-    }
-
-    while(true) {
-        /* Avoid having an opened connection without closing its file descriptor
-         * because pthread_cancel is called in the middle of the assignment */
-        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &test);
-        current_thread->clientfd = socket_accept(current_thread->__owner->sockfd);
-        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &test);
-
-        /* The signal SIGURG is blocked so thread will not be interrupted until it is finished with this client
-         * when killed by the master_thread (not the father) */
-        sigemptyset(&signal_to_block);
-        sigaddset(&signal_to_block, SIGURG);
-
-        if (pthread_sigmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
-            print_error("Error blocking signal");
-            pthread_exit(NULL);
-        }
-
-        pthread_mutex_lock(&current_thread->__owner->shared_mutex); //TODO: control de errores exhaustivo??? Al solicitar mutex por ejemplo
-        current_thread->__owner->executing_threads++;
-        pthread_mutex_unlock(&current_thread->__owner->shared_mutex);
-
-        if (current_thread->clientfd > 0) { // If the connection was not successful, the thread continues accepting other clients TODO: correcta decisión?
-
-            if (socket_receive(current_thread->clientfd, buffer, 1024) > 0) {
-                print_info("Hey! I have received something: %s", buffer);
-                socket_send_string(current_thread->clientfd, "<h1>Bienvenidos a mi p&aacute;gina web</h1>\n<p>Hecha por Daniel Gallo y Guillermo Garc&iacute;a Cobo</p>\n");
+            act.sa_flags = 0;
+            act.sa_handler = _soft_kill;
+            if (sigaction(SIGURG, &act, NULL) < 0) {
+                print_error("Error creating signal handler");
+                return NULL;
             }
 
-        }
-        socket_close(current_thread->clientfd);
+            while(true) {
+                /* Avoid having an opened connection without closing its file descriptor
+                 * because pthread_cancel is called in the middle of the assignment */
+                // TODO: si nos cancelan justo cuando el socket se ha aceptado pero la variable no ha sido asignada
+                client_fd = socket_accept(pool->socket_fd);
 
-        pthread_mutex_lock(&current_thread->__owner->shared_mutex);
-        current_thread->__owner->executing_threads--;
-        pthread_mutex_unlock(&current_thread->__owner->shared_mutex);
+                /* The signal SIGURG is blocked so thread will not be interrupted until it is finished with this client
+                 * when killed by the master_thread (not the father) */
+                sigemptyset(&signal_to_block);
+                sigaddset(&signal_to_block, SIGURG);
 
-        /* SIGURG is unblocked */
-        if (pthread_sigmask(SIG_UNBLOCK, &signal_to_block, &signal_prev) < 0) {
-            print_error("Error unblocking signal");
-            pthread_exit(NULL);
-        }
-    }
+                if (pthread_sigmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
+                    print_error("Error blocking signal");
+                    pthread_exit(NULL);
+                }
+
+                if (pthread_mutex_lock(&pool->shared_mutex) != 0) {
+                    print_error("failed to lock mutex");
+                    return NULL;
+                }
+                pool->n_active_threads++;
+                if (pthread_mutex_unlock(&pool->shared_mutex) != 0) {
+                    print_critical("failed to unlock mutex");
+                    return NULL;
+                }
+
+                if (client_fd != ERROR) { // If the connection was not successful, the thread continues accepting other clients TODO: correcta decisión?
+                    if (socket_receive(client_fd, buffer, BUFFER_LEN) > 0) {
+                        print_info("Hey! I have received something: %s", buffer);
+                        socket_send_string(client_fd, "Hola perras\n");
+                    }
+                }
+                socket_close(client_fd);
+
+                pthread_mutex_lock(&pool->shared_mutex);
+                pool->n_active_threads--;
+                pthread_mutex_unlock(&pool->shared_mutex);
+
+                /* SIGURG is unblocked */
+                if (pthread_sigmask(SIG_UNBLOCK, &signal_to_block, &signal_prev) < 0) {
+                    print_error("Error unblocking signal");
+                    return NULL;
+                }
+            }
     pthread_cleanup_pop(1); // Unreachable line, but needed so pthread_cleanup_push do-while loop is closed when compiling
 }
 
-void _create_more_threads(ThreadPool *t_pool) {
+void _grow_pool(ThreadPool *pool) {
     int i;
-    int alive_threads = ceil(1.5 * t_pool->n_threads); //TODO: cuantos creamos cada vez?
+    int goal = ceil(1.5 * pool->n_spawned_threads); //TODO: cuantos creamos cada vez?
 
-    if (t_pool->n_threads == MAX_THREADS) {
-        print_info("N_THREADS is already set to the maximum...");
+    if (pool->n_spawned_threads == pool->max_threads) {
+        print_warning("cannot spawn more than %d threads...", pool->max_threads);
         return;
     }
 
-    if (alive_threads > MAX_THREADS) {
-        alive_threads = MAX_THREADS;
+    if (goal > pool->max_threads) {
+        goal = pool->max_threads;
     }
 
-    for (i = t_pool->n_threads; i < alive_threads; i++) {
-        t_pool->threads[i].__owner = t_pool;
-        t_pool->threads[i].clientfd = -1;
-        if (pthread_create(&t_pool->threads[i].thread, NULL, _thread_exec, (void *) &t_pool->threads[i]) != 0) {
-            print_error("Error creating %d thread. Destroying pool...", i); // TODO: demasiado exagerado? Pero es que se jode la estructura y quedan huecos...
-            t_pool->n_threads = i - 1; // Update created threads
-            t_pool_destroy(t_pool);
+    for (i = pool->n_spawned_threads; i < goal; i++) {
+        if (pthread_create(&pool->threads[i], NULL, _worker_function, (void *) pool) != 0) {
+            print_error("failed to create thread number %d, only %d threads available", i, i);
+            pool->n_spawned_threads = i - 1;
+            return;
         }
     }
-    t_pool->n_threads = alive_threads;
-    print_info("Successfully created more. Total threads now: %d", t_pool->n_threads);
+
+    pool->n_spawned_threads = goal;
+    print_info("pool size increased, now there are %d threads", pool->n_spawned_threads);
 }
 
-void _destroy_some_threads(ThreadPool *t_pool) {
+void _shrink_pool(ThreadPool *t_pool) {
     int i;
-    int alive_threads = ceil(0.75 * t_pool->n_threads); //TODO: cuantos matamos cada vez?
+    int goal = ceil(0.75 * t_pool->n_spawned_threads); //TODO: cuantos matamos cada vez?
 
-    if (alive_threads == t_pool->n_threads) {
-        print_info("Total threads is set to minimum already. Total threads: %d", t_pool->n_threads);
+    if (goal < INITIAL_THREADS) {
+        print_info("cannot have less than %d threads", INITIAL_THREADS);
         return;
     }
 
-    for (i = t_pool->n_threads - 1; i >= alive_threads; i--) {
-        pthread_kill(t_pool->threads[i].thread, SIGURG);  /* SIGURG (Urgent condition on socket) has to be sent instead of the classic SIGINT, SIGKILL, ...
+    for (i = t_pool->n_spawned_threads - 1; i >= goal; i--) {
+        pthread_kill(t_pool->threads[i], SIGURG);  /* SIGURG (Urgent condition on socket) has to be sent instead of the classic SIGINT, SIGKILL, ...
                                                     * because of the following: "Signal dispositions are process-wide: if a signal handler is installed,
                                                     * the  handler  will be invoked in the thread "thread", but if the disposition of the signal is "stop",
                                                     * "continue", or "terminate",  this  action will affect the whole process." See man pthread_kill. */
     }
-    t_pool->n_threads = alive_threads;
-    print_info("Succesfully killed some. Total threads now: %d", t_pool->n_threads);
+    t_pool->n_spawned_threads = goal;
+    print_info("pool size decreased, now there are %d threads", t_pool->n_spawned_threads);
 }
 
-void *_master_exec(void *args) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
+void *_watcher_function(void *args) {
     ThreadPool *t_pool = (ThreadPool *)args;
     int executing_threads;
 
     while(true) {
-        sleep(10);
+        sleep(WATCHER_FREQUENCY);
 
         pthread_mutex_lock(&t_pool->shared_mutex);
-        executing_threads = t_pool->executing_threads;
+        executing_threads = t_pool->n_active_threads;
         pthread_mutex_unlock(&t_pool->shared_mutex);
 
-        pthread_mutex_lock(&t_pool->master_mutex);
+        pthread_mutex_lock(&t_pool->watcher_mutex);
 
-        if (executing_threads > (0.75 * t_pool->n_threads)) { // TODO: configurar rango
-            print_info("Too many threads executing (%d). Creating more...", executing_threads);
-            _create_more_threads(t_pool);
-        } else if (executing_threads < (0.25 * t_pool->n_threads)) {
-            print_info("Too few threads executing (%d), killing some...", executing_threads);
-            _destroy_some_threads(t_pool);
+        if (executing_threads > (0.75 * t_pool->n_spawned_threads)) { // TODO: configurar rango
+            _grow_pool(t_pool);
+        } else if (executing_threads < (0.25 * t_pool->n_spawned_threads)) {
+            _shrink_pool(t_pool);
         }
 
-        pthread_mutex_unlock(&t_pool->master_mutex);
+        pthread_mutex_unlock(&t_pool->watcher_mutex);
     }
 }
-
-ThreadPool* t_pool_ini(int sockfd) {
-    ThreadPool* t_pool;
-    int i;
-
-    t_pool = (ThreadPool *)malloc(sizeof(ThreadPool));
-    if (t_pool == NULL) {
-        print_error("Error allocating memory for Thread Pool");
-        return NULL;
-    }
-
-    if (pthread_mutex_init(&(t_pool->shared_mutex), NULL) != 0) {
-        print_error("Error initializing shared mutex");
-        free(t_pool);
-        return NULL;
-    }
-
-    if (pthread_mutex_init(&(t_pool->master_mutex), NULL) != 0) {
-        print_error("Error initializing master mutex");
-        pthread_mutex_destroy(&t_pool->shared_mutex);
-        free(t_pool);
-        return NULL;
-    }
-
-    if (pthread_create(&t_pool->master_thread, NULL, _master_exec, (void *) t_pool) != 0) {
-        print_error("Error initializing master_thread");
-        pthread_mutex_destroy(&t_pool->shared_mutex);
-        pthread_mutex_destroy(&t_pool->master_mutex);
-        free(t_pool);
-        return NULL;
-    }
-
-    t_pool->n_threads = START_THREADS;   // TODO: n_threads no debería ser igual a la longitud de threads salvo para valores pequeños (en los que podríamos deshabilitar la creacion del padre). Ahora se queda así pero habrá que hacer distinción!
-    t_pool->threads   = (_thread *)malloc(MAX_THREADS * sizeof(_thread));
-    if (t_pool->threads == NULL) {
-        print_error("Error allocating memory for the list of threads");
-        pthread_mutex_destroy(&t_pool->shared_mutex);
-        pthread_mutex_destroy(&t_pool->master_mutex);
-        free(t_pool->threads);
-        pthread_cancel(t_pool->master_thread);
-        free(t_pool);
-        return NULL;
-    }
-
-    t_pool->sockfd            = sockfd;
-    t_pool->executing_threads = 0;
-
-    for (i = 0; i < t_pool->n_threads; i++) {
-        t_pool->threads[i].clientfd = -1;
-        t_pool->threads[i].__owner = t_pool;
-        if (pthread_create(&t_pool->threads[i].thread, NULL, _thread_exec, (void *) &t_pool->threads[i]) != 0) {
-            print_error("Error initializing threads");
-            t_pool->n_threads = i; // Update threads created so t_pool_destroy will cancel the correct ones
-            t_pool_destroy(t_pool);
-            return NULL;
-        }
-    }
-    return t_pool;
-}
-
-void t_pool_destroy(ThreadPool* t_pool) {
-    int i;
-
-    pthread_mutex_lock(&t_pool->master_mutex); // Wait until master thread has created or deleted threads, so n_threads is updated to its real value
-    pthread_cancel(t_pool->master_thread);
-    for (i = 0; i < t_pool->n_threads; i++) {
-        pthread_cancel(t_pool->threads[i].thread);
-    }
-    pthread_mutex_unlock(&t_pool->master_mutex); // Not necessarily needed
-
-    pthread_mutex_destroy(&t_pool->shared_mutex);
-    pthread_mutex_destroy(&t_pool->master_mutex);
-    free(t_pool->threads);
-    socket_close(t_pool->sockfd);
-    free(t_pool);
-}
+#pragma clang diagnostic pop

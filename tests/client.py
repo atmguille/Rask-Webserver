@@ -21,7 +21,7 @@ def start_stress_test(num_threads=8, num_messages=100):
 
     with ThreadPoolExecutor(max_workers=num_threads) as pool:
         for _ in range(num_threads):
-            pool.submit(send_data, num_messages)
+            pool.submit(send_data, num_messages//num_threads)
 
     end = timer()
     elapsed = end - start
@@ -30,4 +30,4 @@ def start_stress_test(num_threads=8, num_messages=100):
     print(f"[+] Took {elapsed} s to parse {num_messages} messages: average speed of {speed} messages/s")
 
 
-start_stress_test(num_threads=1, num_messages=10000)
+start_stress_test(num_threads=10, num_messages=100000)
