@@ -24,6 +24,6 @@ int main() {
         return 1;
     }
     sleep(1);
-    thread_pool_destroy(threadPool);
+    thread_pool_hard_destroy(threadPool);
     server_attr_destroy(serverAttributes);
 }
