@@ -69,6 +69,7 @@ char *find_content_type(const char *filename) {
     MATCH(".jpg", "image/jpeg")
     MATCH(".mpeg", "video/mpeg")
     MATCH(".mpg", "video/mpeg")
+    MATCH(".mp4", "video/mp4")
     MATCH(".doc", "application/msword")
     MATCH(".docx", "application/msword")
     MATCH(".pdf", "application/pdf")
