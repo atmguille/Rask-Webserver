@@ -44,7 +44,7 @@ void _grow_buffer(DynamicBuffer *db, size_t size) {
         if (new_buffer == NULL) {
             print_error("failed to allocate memory");
         } else {
-            print_debug("allocated more memory, from %zu to %zu", db->size, db->size + size);
+            print_debug("allocated more memory, from %zu to %zu", db->capacity, db->size + size);
             db->buffer = new_buffer;
             db->capacity = db->size + size;
         }
