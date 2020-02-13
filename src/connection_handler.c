@@ -178,6 +178,7 @@ int connection_handler(int client_fd) {
     dynamic_buffer_append_string(db, c_file_size);
     dynamic_buffer_append_string(db, "\r\n\r\n");
     dynamic_buffer_append_file(db, f, file_size);
+    fclose(f);
 
     socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
 
