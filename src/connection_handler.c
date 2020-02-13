@@ -9,6 +9,7 @@
 #include "../srclib/picohttpparser/picohttpparser.h"
 #include "../srclib/logging/logging.h"
 #include "../srclib/socket/socket.h"
+#include "../srclib/dynamic_buffer/dynamic_buffer.h"
 
 #define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
 
@@ -70,11 +71,11 @@ char *find_content_type(const char *filename) {
  * @param filename
  * @return size of filename in bytes or -1 if an error occurred
  */
-int get_file_size(char *filename) {
+size_t get_file_size(char *filename) {
     struct stat st;
     if (stat(filename, &st) == -1) {
         print_error("couldn't provide %s: %s", filename, strerror(errno));
-        return -1;
+        return 0;
     } else {
         return st.st_size;
     }
@@ -94,10 +95,10 @@ int connection_handler(int client_fd) {
     int minor_version;
 
     char *filename;
-    int file_size;
+    size_t file_size;
+    char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     FILE* f;
-    char cfile_size[20];
-    char data_buffer[MAX_BUFFER];
+    DynamicBuffer *db;
 
     while (true) {
         // Keep on reading if the read function was interrupted by a signal
@@ -150,25 +151,28 @@ int connection_handler(int client_fd) {
         return -1;
     }
     file_size = get_file_size(filename);
+    sprintf(c_file_size, "%d", file_size);
 
     // Build the response
-    strcpy(buffer, "HTTP/1.1 200 Ok\r\nContent-Type: ");
-    strcat(buffer, find_content_type(filename));
-    strcat(buffer, "; charset=UTF-8\r\nConnection: keep-alive\r\n");
-    strcat(buffer, "Content-Length: ");
-    sprintf(cfile_size, "%d", file_size);
-    strcat(buffer, cfile_size);
-    strcat(buffer, "\r\n\r\n");
-    fread(data_buffer, sizeof(char), file_size, f);
-    strcat(buffer, data_buffer);
-    strcat(buffer, "\r\n");
-    buffer[strlen(buffer)] = '\0';
+    db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
+    if (db == NULL) {
+        // TODO: send error message
+        return -1;
+    }
 
-    printf("%s\n", data_buffer);
+    dynamic_buffer_append_string(db, "HTTP/1.1 200 Ok\r\nContent-Type: ");
+    dynamic_buffer_append_string(db, find_content_type(filename));
+    dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
+    dynamic_buffer_append_string(db, "Connection: keep-alive\r\n");
+    dynamic_buffer_append_string(db, "Content-Length: ");
+    dynamic_buffer_append_string(db, c_file_size);
+    dynamic_buffer_append_string(db, "\r\n\r\n");
+    dynamic_buffer_append_file(db, f, file_size);
 
-    // TODO: los archivos binario tienen \0: HACER STRINGBUILDER!!!!!!, que si no se manda a medias
+    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
 
-    socket_send_string(client_fd, buffer);
+    dynamic_buffer_destroy(db);
+    free(filename);
 
     return 0;
 }
