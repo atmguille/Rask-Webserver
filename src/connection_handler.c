@@ -159,10 +159,12 @@ int connection_handler(int client_fd) {
     sprintf(cfile_size, "%d", file_size);
     strcat(buffer, cfile_size);
     strcat(buffer, "\r\n\r\n");
-    printf("%zd\n", ret);
+    fread(data_buffer, sizeof(char), file_size, f);
     strcat(buffer, data_buffer);
     strcat(buffer, "\r\n");
     buffer[strlen(buffer)] = '\0';
+
+    printf("%s\n", data_buffer);
 
     // TODO: los archivos binario tienen \0: HACER STRINGBUILDER!!!!!!, que si no se manda a medias
 

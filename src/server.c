@@ -3,6 +3,7 @@
 #include "../srclib/picohttpparser/picohttpparser.h"
 #include "../srclib/logging/logging.h"
 #include "../includes/connection_handler.h"
+#include "../srclib/DynamicBuffer/dynamic_buffer.h"
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -26,5 +27,4 @@ int main() {
             client_fd = socket_accept(socket_fd);
         }
     }
-
 }
