@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "dynamic_buffer.h"
@@ -37,18 +38,21 @@ DynamicBuffer *dynamic_buffer_ini(int initial_capacity) {
     return sb;
 }
 
-size_t _grow_buffer(DynamicBuffer *db, size_t size) {
+void _grow_buffer(DynamicBuffer *db, size_t size) {
     if (db->size + size > db->capacity) {
         void *new_buffer = realloc(db->buffer, db->size + size);
         if (new_buffer == NULL) {
             print_error("failed to allocate memory");
-            return 0;
         } else {
             print_debug("allocated more memory, from %zu to %zu", db->size, db->size + size);
             db->buffer = new_buffer;
             db->capacity = db->size + size;
         }
     }
+}
+
+bool _can_fit(DynamicBuffer *db, size_t size) {
+    return size <= (db->capacity - db->size);
 }
 
 size_t dynamic_buffer_append(DynamicBuffer *db, const void *src, size_t size) {
@@ -58,6 +62,10 @@ size_t dynamic_buffer_append(DynamicBuffer *db, const void *src, size_t size) {
     }
 
     _grow_buffer(db, size);
+    // If _grow_buffer failed there won't be enough space for memcpy
+    if (!_can_fit(db, size)) {
+        return 0;
+    }
 
     memcpy(&db->buffer[db->size], src, size);
     db->size += size;
@@ -70,14 +78,21 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string) {
 }
 
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
+    size_t bytes_read;
     if (db == NULL || f == NULL) {
         print_warning("NULL passed to dynamic_buffer_append");
         return 0;
     }
 
     _grow_buffer(db, size);
+    // If _grow_buffer failed there won't be enough space for memcpy
+    if (!_can_fit(db, size)) {
+        return 0;
+    }
 
-    fread(&db->buffer[db->size])
+    bytes_read = fread(&db->buffer[db->size], sizeof(char), size, f);
+    db->size += bytes_read;
+    return bytes_read;
 }
 
 const void *dynamic_buffer_get_buffer(DynamicBuffer *db) {
