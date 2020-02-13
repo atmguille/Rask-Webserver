@@ -14,17 +14,27 @@
 #define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
 
 /**
- * Gets filename from the path
+ * Gets filename from the path (if the path is "/", it will use the default one)
  * @param path non-null-terminated path
  * @param length of path
  * @return a null-terminated filename that must be freed
  */
 char *get_filename(const char *path, int length) {
-    size_t base_path_length = sizeof(BASE_PATH) - 1;
-    char *filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
+    size_t base_path_length;
+    char *filename;
+
+    if (length == 1 && *path == '/') {
+        path = DEFAULT_PATH;
+        length = sizeof(DEFAULT_PATH) - 1;
+    }
+
+    base_path_length = sizeof(BASE_PATH) - 1;
+    filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
+
     strncpy(filename, BASE_PATH, base_path_length);
     strncpy(&filename[base_path_length], path, length);
     filename[length + base_path_length] = '\0';
+
     return filename;
 }
 
@@ -151,7 +161,7 @@ int connection_handler(int client_fd) {
         return -1;
     }
     file_size = get_file_size(filename);
-    sprintf(c_file_size, "%d", file_size);
+    sprintf(c_file_size, "%zu", file_size);
 
     // Build the response
     db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);

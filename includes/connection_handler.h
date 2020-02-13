@@ -4,6 +4,7 @@
 #define MAX_BUFFER 4096
 #define MAX_HEADERS 32
 #define BASE_PATH "../www"
+#define DEFAULT_PATH "/index.html"
 
 /**
  * Handles a connection with the client, reading a request and answering with the requested data
