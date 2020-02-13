@@ -54,7 +54,6 @@ ServerAttributes *server_attr_load(char *config_file_name) {
 }
 
 void server_attr_destroy(ServerAttributes *server_attr) {
-    printf("FReee");
     free(server_attr->server_root);
     free(server_attr->server_signature);
     free(server_attr);
