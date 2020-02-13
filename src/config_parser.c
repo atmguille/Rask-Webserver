@@ -35,9 +35,11 @@ ServerAttributes *server_attr_load(char *config_file_name) {
     cfg = cfg_init(opts, 0);
     if (cfg_parse(cfg, config_file_name) == CFG_PARSE_ERROR) {
         print_error("failed to parse config file");
+        cfg_free(cfg);
         free(server_attr);
         return NULL;
     }
+    cfg_free(cfg);
     // Cast is done here to avoid doing casts elsewhere
     server_attr->max_clients = (int) aux_max_clients;
     server_attr->listen_port = (int) aux_listen_port;
@@ -52,6 +54,7 @@ ServerAttributes *server_attr_load(char *config_file_name) {
 }
 
 void server_attr_destroy(ServerAttributes *server_attr) {
+    printf("FReee");
     free(server_attr->server_root);
     free(server_attr->server_signature);
     free(server_attr);
