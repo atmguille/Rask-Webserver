@@ -3,16 +3,13 @@
 #include "../srclib/picohttpparser/picohttpparser.h"
 #include "../srclib/logging/logging.h"
 #include "../includes/connection_handler.h"
-#include "../srclib/DynamicBuffer/dynamic_buffer.h"
+#include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <sys/stat.h>
-
-#define MAX_BUFFER 4096
-#define MAX_HEADERS 100
 
 
 int main() {
