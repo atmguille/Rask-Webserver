@@ -21,7 +21,7 @@ struct _ThreadPool {
 
 void *_watcher_function(void *args);
 void *_worker_function(void *args);
-
+// TODO: proteger mutex restantes en este archvio
 ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
     ThreadPool* pool;
     int i;
@@ -145,7 +145,7 @@ void *_worker_function(void *args) {
             act.sa_handler = _soft_kill;
             if (sigaction(SIGURG, &act, NULL) < 0) {
                 print_error("Error creating signal handler");
-                return NULL;
+                pthread_exit(NULL);
             }
 
             while(true) {
@@ -166,12 +166,12 @@ void *_worker_function(void *args) {
 
                 if (pthread_mutex_lock(&pool->shared_mutex) != 0) {
                     print_error("failed to lock mutex");
-                    return NULL;
+                    pthread_exit(NULL);
                 }
                 pool->n_active_threads++;
                 if (pthread_mutex_unlock(&pool->shared_mutex) != 0) {
                     print_critical("failed to unlock mutex");
-                    return NULL;
+                    pthread_exit(NULL);
                 }
 
                 if (client_fd != ERROR) { // If the connection was not successful, the thread continues accepting other clients TODO: correcta decisión?
@@ -189,7 +189,7 @@ void *_worker_function(void *args) {
                 /* SIGURG is unblocked */
                 if (pthread_sigmask(SIG_UNBLOCK, &signal_to_block, &signal_prev) < 0) {
                     print_error("Error unblocking signal");
-                    return NULL;
+                    pthread_exit(NULL);
                 }
             }
     pthread_cleanup_pop(1); // Unreachable line, but needed so pthread_cleanup_push do-while loop is closed when compiling
