@@ -144,7 +144,7 @@ int connection_handler(int client_fd) {
             print_error("error parsing request");
             return -1;
         } else if (ret == -2 && len_buffer == MAX_BUFFER) {
-            print_error("request is too long");
+            print_error("request is too long"); // TODO: handle this case
             return -1;
         }
     }
