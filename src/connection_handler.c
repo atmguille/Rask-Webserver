@@ -132,7 +132,7 @@ bool _is_request_valid(Request *request) { // TODO: habrá que hacer más compro
         strncmp(request->method, "OPTIONS", 7 + 1) == 0) {
         return true;
     } else {
-        return false;
+        return false; // TODO: debería devolver un 501 (Not implemented), no un 400 (Bad Request). NO???
     }
 
 }
@@ -197,6 +197,21 @@ int _process_request(int client_fd, Request *request) {
 
 }
 
+
+
+int _process_response(Request *request) {
+    if (strncmp(request->method, "GET", 3 + 1) == 0) {
+        return _process_get();
+    } else if (strncmp(request->method, "POST", 4 + 1) == 0) {
+        return _process_post();
+    } else if (strncmp(request->method, "OPTIONS", 7 + 1) == 0) {
+        return _process_options();
+    } else {
+        print_error("method not implemented"); // This line should never be reached
+        return -1;
+    }
+}
+
 int connection_handler(int client_fd) {
     Request *request;
 
@@ -215,6 +230,8 @@ int connection_handler(int client_fd) {
         free(request);
         return -1;
     }
+
+    _process_response(request);
 
     filename = get_filename(request->path, request->path_len);
     print_info("%s requested (type %s)", filename, find_content_type(filename));
