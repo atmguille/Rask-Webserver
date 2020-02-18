@@ -26,6 +26,10 @@ struct _Request {
     size_t num_headers;
 };
 
+/**
+ * Allocates memory and initializes values to macros
+ * @return request
+ */
 Request *_request_ini() {
     Request *request;
     request = (Request *)malloc(sizeof(Request));
@@ -117,55 +121,72 @@ size_t get_file_size(char *filename) {
     }
 }
 
-int _is_valid_request(Request *request) { // TODO: habrá que hacer más comprobaciones imagino
-    if (strcmp(request->method, "GET") == 0 ||
-        strcmp(request->method, "POST") == 0 ||
-        strcmp(request->method, "OPTIONS") == 0) {
-        return 0;
+/**
+ * Checks if a request is valid (method supported, ...)
+ * @param request
+ * @return true if valid
+ */
+bool _is_request_valid(Request *request) { // TODO: habrá que hacer más comprobaciones imagino
+    if (strncmp(request->method, "GET", 3 + 1) == 0 ||
+        strncmp(request->method, "POST", 4 + 1) == 0 ||
+        strncmp(request->method, "OPTIONS", 7 + 1) == 0) {
+        return true;
     } else {
-        return -1;
+        return false;
     }
 
 }
 
+/**
+ * Read from the client_fd, parse the request and test if it's valid
+ * @param client_fd
+ * @param request
+ * @return -1 on error, 0 if everything was correct
+ */
 int _process_request(int client_fd, Request *request) {
     ssize_t ret;
 
-    // Keep on reading if the read function was interrupted by a signal TODO: why read and not recv????
-    while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 && errno == EINTR) {}
-    if (ret < 0) {
-        print_error("failed to read from client: %s", strerror(errno));
-        return -1;
-    } else if (ret == 0) {
-        print_info("client has disconnected");
-        return -1;
+    while (true) {
+        // Keep on reading if the read function was interrupted by a signal
+        while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 &&
+               errno == EINTR) {}
+        if (ret < 0) {
+            print_error("failed to read from client: %s", strerror(errno));
+            return -1;
+        } else if (ret == 0) {
+            print_info("client has disconnected");
+            return -1;
+        }
+
+        request->old_len_buffer = request->len_buffer;
+        request->len_buffer += ret;
+
+        // Parse the request
+        ret = phr_parse_request(
+                request->buffer,
+                request->len_buffer,
+                (const char **) &request->method,
+                &request->method_len,
+                (const char **) &request->path,
+                &request->path_len,
+                &request->minor_version,
+                request->headers,
+                &request->num_headers,
+                request->old_len_buffer);
+        if (ret > 0) {
+            break;
+        } else if (ret == -1) {
+            print_error("error parsing request");
+            return -1;
+        } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
+            print_error("request is too long"); // TODO: handle this case
+            return -1;
+        }
     }
 
-    request->old_len_buffer = request->len_buffer;
-    request->len_buffer += ret;
-
-    // Parse the request
-    ret = phr_parse_request(
-            request->buffer,
-            request->len_buffer,
-            (const char **) &request->method,
-            &request->method_len,
-            (const char **) &request->path,
-            &request->path_len,
-            &request->minor_version,
-            request->headers,
-            &request->num_headers,
-            request->old_len_buffer);
-
-    if (ret == -1) {
-        print_error("error parsing request");
-        return -1;
-    } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
-        print_error("request is too long"); // TODO: handle this case
-        return -1;
-    }
-
-    if (_is_valid_request(request) != 0) {
+    if (_is_request_valid(request)) {
+        return 0;
+    } else {
         socket_send_string(client_fd, "HTTP/1.1 400 Bad Request\r\n"
                                       "Content-Type: text/html; charset=UTF-8\r\n"
                                       "Content-Length: 33"
@@ -174,7 +195,6 @@ int _process_request(int client_fd, Request *request) {
         return -1;
     }
 
-    return 0;
 }
 
 int connection_handler(int client_fd) {
@@ -192,6 +212,7 @@ int connection_handler(int client_fd) {
     }
 
     if (_process_request(client_fd, request) < 0) {
+        free(request);
         return -1;
     }
 
@@ -205,6 +226,7 @@ int connection_handler(int client_fd) {
                                       "Content-Length: 33"
                                       "Connection: close\r\n\r\n"
                                       "<!DOCTYPE html><h1>Not Found</h1>\r\n");
+        free(request);
         return -1;
     }
     file_size = get_file_size(filename);
@@ -214,6 +236,7 @@ int connection_handler(int client_fd) {
     db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
         // TODO: send error message
+        free(request);
         return -1;
     }
 
@@ -231,6 +254,7 @@ int connection_handler(int client_fd) {
 
     dynamic_buffer_destroy(db);
     free(filename);
+    free(request);
 
     return 0;
 }
