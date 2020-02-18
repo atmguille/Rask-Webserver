@@ -13,6 +13,31 @@
 
 #define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
 
+struct _Request {
+    char buffer[MAX_BUFFER];
+    size_t len_buffer;
+    size_t old_len_buffer;
+    char *method;
+    size_t method_len;
+    char *path;
+    size_t path_len;
+    int minor_version;
+    struct phr_header headers[MAX_HEADERS];
+    size_t num_headers;
+};
+
+Request *_request_ini() {
+    Request *request;
+    request = (Request *)malloc(sizeof(Request));
+    if (request == NULL) {
+        print_error("failed to allocate memory for request struct");
+        return NULL;
+    }
+    request->len_buffer = 0;
+    request ->num_headers = MAX_HEADERS;
+    return request;
+}
+
 /**
  * Gets filename from the path (if the path is "/", it will use the default one)
  * @param path non-null-terminated path
@@ -92,18 +117,68 @@ size_t get_file_size(char *filename) {
     }
 }
 
-int connection_handler(int client_fd) {
-    char buffer[MAX_BUFFER];
-    size_t len_buffer = 0;
-    size_t old_len_buffer;
+int _is_valid_request(Request *request) { // TODO: habrá que hacer más comprobaciones imagino
+    if (strcmp(request->method, "GET") == 0 ||
+        strcmp(request->method, "POST") == 0 ||
+        strcmp(request->method, "OPTIONS") == 0) {
+        return 0;
+    } else {
+        return -1;
+    }
+
+}
+
+int _process_request(int client_fd, Request *request) {
     ssize_t ret;
-    struct phr_header headers[MAX_HEADERS];
-    size_t num_headers = MAX_HEADERS;
-    char *method;
-    size_t method_len;
-    char *path;
-    size_t path_len;
-    int minor_version;
+
+    // Keep on reading if the read function was interrupted by a signal TODO: why read and not recv????
+    while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 && errno == EINTR) {}
+    if (ret < 0) {
+        print_error("failed to read from client: %s", strerror(errno));
+        return -1;
+    } else if (ret == 0) {
+        print_info("client has disconnected");
+        return -1;
+    }
+
+    request->old_len_buffer = request->len_buffer;
+    request->len_buffer += ret;
+
+    // Parse the request
+    ret = phr_parse_request(
+            request->buffer,
+            request->len_buffer,
+            (const char **) &request->method,
+            &request->method_len,
+            (const char **) &request->path,
+            &request->path_len,
+            &request->minor_version,
+            request->headers,
+            &request->num_headers,
+            request->old_len_buffer);
+
+    if (ret == -1) {
+        print_error("error parsing request");
+        return -1;
+    } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
+        print_error("request is too long"); // TODO: handle this case
+        return -1;
+    }
+
+    if (_is_valid_request(request) != 0) {
+        socket_send_string(client_fd, "HTTP/1.1 400 Bad Request\r\n"
+                                      "Content-Type: text/html; charset=UTF-8\r\n"
+                                      "Content-Length: 33"
+                                      "Connection: close\r\n\r\n"
+                                      "<!DOCTYPE html><h1>Bad Request</h1>\r\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int connection_handler(int client_fd) {
+    Request *request;
 
     char *filename;
     size_t file_size;
@@ -111,45 +186,16 @@ int connection_handler(int client_fd) {
     FILE* f;
     DynamicBuffer *db;
 
-    while (true) {
-        // Keep on reading if the read function was interrupted by a signal
-        while ((ret = read(client_fd, &buffer[len_buffer], MAX_BUFFER - len_buffer)) == -1 && errno == EINTR) {}
-        if (ret < 0) {
-            print_error("failed to read from client: %s", strerror(errno));
-            return -1;
-        } else if (ret == 0) {
-            print_info("client has disconnected");
-            return -1;
-        }
-
-        old_len_buffer = len_buffer;
-        len_buffer += ret;
-
-        // Parse the request
-        ret = phr_parse_request(
-                buffer,
-                len_buffer,
-                (const char **) &method,
-                &method_len,
-                (const char **) &path,
-                &path_len,
-                &minor_version,
-                headers,
-                &num_headers,
-                old_len_buffer);
-
-        if (ret > 0) {
-            break;
-        } else if (ret == -1) {
-            print_error("error parsing request");
-            return -1;
-        } else if (ret == -2 && len_buffer == MAX_BUFFER) {
-            print_error("request is too long"); // TODO: handle this case
-            return -1;
-        }
+    request = _request_ini();
+    if (request == NULL) {
+        return -1;
     }
 
-    filename = get_filename(path, path_len);
+    if (_process_request(client_fd, request) < 0) {
+        return -1;
+    }
+
+    filename = get_filename(request->path, request->path_len);
     print_info("%s requested (type %s)", filename, find_content_type(filename));
     f = fopen(filename, "r");
     if (f == NULL) {

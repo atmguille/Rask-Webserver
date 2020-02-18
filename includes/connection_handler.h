@@ -6,6 +6,8 @@
 #define BASE_PATH "../www"
 #define DEFAULT_PATH "/index.html"
 
+typedef struct _Request Request;
+
 /**
  * Handles a connection with the client, reading a request and answering with the requested data
  * This function won't close client_fd.
