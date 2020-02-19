@@ -150,7 +150,10 @@ int _process_request(int client_fd, Request *request) {
         // Keep on reading if the read function was interrupted by a signal
         while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 &&
                errno == EINTR) {}
-        if (ret < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            print_info("timeout");
+            return CLOSE_CONNECTION;
+        } else if (ret < 0) {
             print_error("failed to read from client: %s", strerror(errno));
             return ERROR;
         } else if (ret == 0) {
@@ -225,6 +228,9 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     FILE* f;
     DynamicBuffer *db;
+
+    // Set client_fd socket timeout
+    socket_set_timeout(client_fd, 10);
 
     request = _request_ini();
     if (request == NULL) {
