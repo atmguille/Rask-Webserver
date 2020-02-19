@@ -1,7 +1,7 @@
 #ifndef CONNECTION_HANDLER_H
 #define CONNECTION_HANDLER_H
 
-#define MAX_BUFFER 4096
+#define MAX_BUFFER 8192
 #define MAX_HEADERS 32
 #define BASE_PATH "../www"
 #define DEFAULT_PATH "/index.html"

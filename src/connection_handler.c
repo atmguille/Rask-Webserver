@@ -13,6 +13,13 @@
 
 #define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
 
+enum http_method {
+    GET,
+    POST,
+    OPTIONS,
+    UNKNOWN
+};
+
 struct _Request {
     char buffer[MAX_BUFFER];
     size_t len_buffer;
@@ -111,7 +118,7 @@ char *find_content_type(const char *filename) {
  * @param filename
  * @return size of filename in bytes or -1 if an error occurred
  */
-size_t get_file_size(char *filename) {
+size_t _get_file_size(char *filename) {
     struct stat st;
     if (stat(filename, &st) == -1) {
         print_error("couldn't provide %s: %s", filename, strerror(errno));
@@ -127,14 +134,7 @@ size_t get_file_size(char *filename) {
  * @return true if valid
  */
 bool _is_request_valid(Request *request) { // TODO: habrá que hacer más comprobaciones imagino
-    if (strncmp(request->method, "GET", 3 + 1) == 0 ||
-        strncmp(request->method, "POST", 4 + 1) == 0 ||
-        strncmp(request->method, "OPTIONS", 7 + 1) == 0) {
-        return true;
-    } else {
-        return false; // TODO: debería devolver un 501 (Not implemented), no un 400 (Bad Request). NO???
-    }
-
+    return true;
 }
 
 /**
@@ -197,23 +197,27 @@ int _process_request(int client_fd, Request *request) {
 
 }
 
+bool _is_method(Request *request, char *method) {
+    size_t method_len = strlen(method);
+    return (method_len == request->method_len && strncmp(method, request->method, method_len) == 0);
+}
 
-
-int _process_response(Request *request) {
-    if (strncmp(request->method, "GET", 3 + 1) == 0) {
-        return _process_get();
-    } else if (strncmp(request->method, "POST", 4 + 1) == 0) {
-        return _process_post();
-    } else if (strncmp(request->method, "OPTIONS", 7 + 1) == 0) {
-        return _process_options();
+enum http_method _get_method(Request *request) {
+    if (_is_method(request, "GET")) {
+        return GET;
+    } else if (_is_method(request, "POST")) {
+        return POST;
+    } else if (_is_method(request, "OPTIONS")) {
+        return OPTIONS;
     } else {
-        print_error("method not implemented"); // This line should never be reached
-        return -1;
+        print_warning("method not implemented");
+        return UNKNOWN;
     }
 }
 
 int connection_handler(int client_fd) {
     Request *request;
+    enum http_method method;
 
     char *filename;
     size_t file_size;
@@ -231,7 +235,18 @@ int connection_handler(int client_fd) {
         return -1;
     }
 
-    _process_response(request);
+    method = _get_method(request);
+    if (method == UNKNOWN) {
+        socket_send_string(client_fd, "HTTP/1.1 501 Not Implemented\r\n"
+                                      "Content-Type: text/html; charset=UTF-8\r\n"
+                                      "Content-Length: 39"
+                                      "Connection: close\r\n\r\n"
+                                      "<!DOCTYPE html><h1>Not Implemented</h1>\r\n");
+        free(request);
+        return -1;
+    }
+
+
 
     filename = get_filename(request->path, request->path_len);
     print_info("%s requested (type %s)", filename, find_content_type(filename));
@@ -246,7 +261,7 @@ int connection_handler(int client_fd) {
         free(request);
         return -1;
     }
-    file_size = get_file_size(filename);
+    file_size = _get_file_size(filename);
     sprintf(c_file_size, "%zu", file_size);
 
     // Build the response
