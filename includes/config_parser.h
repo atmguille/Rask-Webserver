@@ -1,7 +1,10 @@
 #ifndef CONFIG_PARSER_H
 #define CONFIG_PARSER_H
 
-struct config{
+/**
+ * Struct containing server configuration attributes, stored in files/server.conf
+ */
+struct config {
     char *signature;
     char *base_path;
     char *default_path;

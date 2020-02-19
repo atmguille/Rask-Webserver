@@ -35,7 +35,6 @@ char* ip_to_string(struct sockaddr* addr) {
     return s;
 }
 
-
 int socket_open(int port, int max_pending_connections) {
     int socket_fd;
     struct sockaddr_in addr;
