@@ -141,7 +141,7 @@ bool _is_request_valid(Request *request) { // TODO: habrá que hacer más compro
  * Read from the client_fd, parse the request and test if it's valid
  * @param client_fd
  * @param request
- * @return -1 on error, 0 if everything was correct
+ * @return ERROR on error, 0 if everything was correct, CLOSE_CONNECTION if the client's fd should be closed
  */
 int _process_request(int client_fd, Request *request) {
     ssize_t ret;
@@ -152,10 +152,10 @@ int _process_request(int client_fd, Request *request) {
                errno == EINTR) {}
         if (ret < 0) {
             print_error("failed to read from client: %s", strerror(errno));
-            return -1;
+            return ERROR;
         } else if (ret == 0) {
             print_info("client has disconnected");
-            return -1;
+            return CLOSE_CONNECTION;
         }
 
         request->old_len_buffer = request->len_buffer;
@@ -177,22 +177,22 @@ int _process_request(int client_fd, Request *request) {
             break;
         } else if (ret == -1) {
             print_error("error parsing request");
-            return -1;
+            return PARSE_ERROR;
         } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
             print_error("request is too long"); // TODO: handle this case
-            return -1;
+            return ERROR;
         }
     }
 
     if (_is_request_valid(request)) {
-        return 0;
+        return OK;
     } else {
         socket_send_string(client_fd, "HTTP/1.1 400 Bad Request\r\n"
                                       "Content-Type: text/html; charset=UTF-8\r\n"
                                       "Content-Length: 33"
                                       "Connection: close\r\n\r\n"
                                       "<!DOCTYPE html><h1>Bad Request</h1>\r\n");
-        return -1;
+        return ERROR;
     }
 
 }
@@ -218,6 +218,7 @@ enum http_method _get_method(Request *request) {
 int connection_handler(int client_fd) {
     Request *request;
     enum http_method method;
+    int response_code;
 
     char *filename;
     size_t file_size;
@@ -227,12 +228,13 @@ int connection_handler(int client_fd) {
 
     request = _request_ini();
     if (request == NULL) {
-        return -1;
+        return ERROR;
     }
 
-    if (_process_request(client_fd, request) < 0) {
+    response_code = _process_request(client_fd, request);
+    if (response_code < 0) {
         free(request);
-        return -1;
+        return response_code;
     }
 
     method = _get_method(request);
@@ -243,7 +245,7 @@ int connection_handler(int client_fd) {
                                       "Connection: close\r\n\r\n"
                                       "<!DOCTYPE html><h1>Not Implemented</h1>\r\n");
         free(request);
-        return -1;
+        return ERROR;
     }
 
 
@@ -259,7 +261,7 @@ int connection_handler(int client_fd) {
                                       "Connection: close\r\n\r\n"
                                       "<!DOCTYPE html><h1>Not Found</h1>\r\n");
         free(request);
-        return -1;
+        return ERROR;
     }
     file_size = _get_file_size(filename);
     sprintf(c_file_size, "%zu", file_size);
@@ -269,7 +271,7 @@ int connection_handler(int client_fd) {
     if (db == NULL) {
         // TODO: send error message
         free(request);
-        return -1;
+        return ERROR;
     }
 
     dynamic_buffer_append_string(db, "HTTP/1.1 200 Ok\r\nContent-Type: ");
@@ -288,5 +290,5 @@ int connection_handler(int client_fd) {
     free(filename);
     free(request);
 
-    return 0;
+    return OK;
 }

@@ -1,6 +1,7 @@
 #include "../includes/thread_pool.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/logging/logging.h"
+#include "../includes/connection_handler.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>
@@ -143,9 +144,11 @@ void *_worker_function(void *args) {
                  * because pthread_cancel is called in the middle of the assignment */
                 // TODO: si nos cancelan justo cuando el socket se ha aceptado pero la variable no ha sido asignada
                 client_fd = socket_accept(pool->socket_fd);
+                if (client_fd == ERROR) {
+                    continue;
+                }
 
-                /* The signal SIGURG is blocked so thread will not be interrupted until it is finished with this client
-                 * when killed by the master_thread (not the father) */
+                /* The signal SIGURG is blocked so thread will not be soft-interrupted */
                 sigemptyset(&signal_to_block);
                 sigaddset(&signal_to_block, SIGURG);
 
@@ -164,12 +167,7 @@ void *_worker_function(void *args) {
                     return NULL;
                 }
 
-                if (client_fd != ERROR) { // If the connection was not successful, the thread continues accepting other clients TODO: correcta decisión?
-                    if (socket_receive(client_fd, buffer, BUFFER_LEN) > 0) {
-                        print_info("Hey! I have received something: %s", buffer);
-                        socket_send_string(client_fd, "Hola perras\n");
-                    }
-                }
+                while (connection_handler(client_fd) != CLOSE_CONNECTION);
                 socket_close(client_fd);
 
                 pthread_mutex_lock(&pool->shared_mutex);

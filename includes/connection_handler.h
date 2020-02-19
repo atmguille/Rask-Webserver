@@ -6,6 +6,11 @@
 #define BASE_PATH "../www"
 #define DEFAULT_PATH "/index.html"
 
+#define OK 0
+#define ERROR -1
+#define CLOSE_CONNECTION -2
+#define PARSE_ERROR -3
+
 typedef struct _Request Request;
 
 /**
