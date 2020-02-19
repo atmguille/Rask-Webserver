@@ -1,0 +1,3 @@
+[submodule "srclib/picohttpparser"]
+	path = srclib/picohttpparser
+	url = https://github.com/h2o/picohttpparser

@@ -47,6 +47,14 @@ ssize_t socket_send_string(int client_fd, const char* string);
 ssize_t socket_receive(int client_fd, void *buffer, size_t len);
 
 /**
+ * Sets a timeout for specified socket
+ * @param client_fd socket file descriptor
+ * @param timeout in seconds
+ * @return
+ */
+int socket_set_timeout(int client_fd, unsigned int timeout);
+
+/**
  * Closes a file descriptor
  * @param socket_fd a file descriptor
  */

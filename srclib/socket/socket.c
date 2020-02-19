@@ -35,7 +35,6 @@ char* ip_to_string(struct sockaddr* addr) {
     return s;
 }
 
-
 int socket_open(int port, int max_pending_connections) {
     int socket_fd;
     struct sockaddr_in addr;
@@ -132,6 +131,19 @@ ssize_t socket_receive(int client_fd, void* buffer, size_t len) {
     print_debug("%d bytes received", bytes_received);
 
     return bytes_received;
+}
+
+int socket_set_timeout(int client_fd, unsigned int timeout) {
+    struct timeval tv;
+    tv.tv_sec = timeout;
+    tv.tv_usec = 0;
+
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) != 0) {
+        print_error("error receiving data from the socket: %s", strerror(errno));
+        return ERROR;
+    }
+
+    return 0;
 }
 
 void socket_close(int socket_fd) {
