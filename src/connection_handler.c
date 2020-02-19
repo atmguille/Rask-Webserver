@@ -55,19 +55,19 @@ Request *_request_ini() {
  * @param length of path
  * @return a null-terminated filename that must be freed
  */
-char *get_filename(const char *path, int length) {
+char *get_filename(const char *path, size_t length, struct config *server_attrs) {
     size_t base_path_length;
     char *filename;
 
     if (length == 1 && *path == '/') {
-        path = DEFAULT_PATH;
-        length = sizeof(DEFAULT_PATH) - 1;
+        path = server_attrs->default_path;
+        length = strlen(server_attrs->default_path);
     }
 
-    base_path_length = sizeof(BASE_PATH) - 1;
+    base_path_length = strlen(server_attrs->base_path);
     filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
 
-    strncpy(filename, BASE_PATH, base_path_length);
+    strncpy(filename, server_attrs->base_path, base_path_length);
     strncpy(&filename[base_path_length], path, length);
     filename[length + base_path_length] = '\0';
 
@@ -215,7 +215,7 @@ enum http_method _get_method(Request *request) {
     }
 }
 
-int connection_handler(int client_fd) {
+int connection_handler(int client_fd, struct config *server_attrs) {
     Request *request;
     enum http_method method;
     int response_code;
@@ -250,7 +250,7 @@ int connection_handler(int client_fd) {
 
 
 
-    filename = get_filename(request->path, request->path_len);
+    filename = get_filename(request->path, request->path_len, server_attrs);
     print_info("%s requested (type %s)", filename, find_content_type(filename));
     f = fopen(filename, "r");
     if (f == NULL) {

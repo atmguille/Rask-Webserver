@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <confuse.h>
 
-ServerAttributes *server_attr_load(char *config_file_name) {
-    ServerAttributes *server_attr;
+struct config *config_load(char *config_file_name) {
+    struct config *server_attrs;
     cfg_t *cfg;
     /* Although the macro used to specify an integer option is called
      * CFG_SIMPLE_INT(), it actually expects a long int. On a 64 bit system
@@ -15,20 +15,21 @@ ServerAttributes *server_attr_load(char *config_file_name) {
      * cfg_getint(), this is not a problem as the data types are implicitly
      * cast.
      */
-    long int aux_max_clients;
-    long int aux_listen_port;
+    long int max_clients;
+    long int listen_port;
 
-    server_attr = (ServerAttributes *)malloc(sizeof(ServerAttributes));
-    if (server_attr == NULL) {
-        print_error("failed to allocate memory for ServerAttributes");
+    server_attrs = (struct config *)calloc(1, sizeof(struct config));
+    if (server_attrs == NULL) {
+        print_error("failed to allocate memory for server attributes");
         return NULL;
     }
 
     cfg_opt_t opts[] = {
-            CFG_SIMPLE_STR("server_root", &server_attr->server_root),
-            CFG_SIMPLE_INT("max_clients", &aux_max_clients),
-            CFG_SIMPLE_INT("listen_port", &aux_listen_port),
-            CFG_SIMPLE_STR("server_signature", &server_attr->server_signature),  // TODO: vamos a cogerlo como una sola string, aunque en moodle lo separan sin poner comillas. Hay que preguntar
+            CFG_SIMPLE_STR("signature", &server_attrs->signature),
+            CFG_SIMPLE_STR("base_path", &server_attrs->base_path),
+            CFG_SIMPLE_STR("default_path", &server_attrs->default_path),
+            CFG_SIMPLE_INT("max_clients", &max_clients),
+            CFG_SIMPLE_INT("listen_port", &listen_port),
             CFG_END()
     };
 
@@ -36,26 +37,28 @@ ServerAttributes *server_attr_load(char *config_file_name) {
     if (cfg_parse(cfg, config_file_name) == CFG_PARSE_ERROR) {
         print_error("failed to parse config file");
         cfg_free(cfg);
-        free(server_attr);
+        free(server_attrs);
         return NULL;
     }
     cfg_free(cfg);
     // Cast is done here to avoid doing casts elsewhere
-    server_attr->max_clients = (int) aux_max_clients;
-    server_attr->listen_port = (int) aux_listen_port;
+    server_attrs->max_clients = (int) max_clients;
+    server_attrs->listen_port = (int) listen_port;
 
-    print_info("Server Attributes:");
-    print_info("\tserver_root: %s", server_attr->server_root);
-    print_info("\tmax_clients: %d", server_attr->max_clients);
-    print_info("\tlisten_port: %d", server_attr->listen_port);
-    print_info("\tserver_signature: %s", server_attr->server_signature);
+    print_debug("Server attributes:");
+    print_debug("  signature: %s", server_attrs->signature);
+    print_debug("  base_path: %s", server_attrs->base_path);
+    print_debug("  default_path: %s", server_attrs->default_path);
+    print_debug("  max_clients: %d", server_attrs->max_clients);
+    print_debug("  listen_port: %d", server_attrs->listen_port);
 
-    return server_attr;
+    return server_attrs;
 }
 
-void server_attr_destroy(ServerAttributes *server_attr) {
-    free(server_attr->server_root);
-    free(server_attr->server_signature);
-    free(server_attr);
+void config_destroy(struct config *sever_attrs) {
+    free(sever_attrs->signature);
+    free(sever_attrs->base_path);
+    free(sever_attrs->default_path);
+    free(sever_attrs);
 }
 

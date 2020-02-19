@@ -18,6 +18,7 @@ struct _ThreadPool {
     int             n_active_threads;   // Number of threads that are currently executing something (can grow up to max_threads)
     int             max_threads;        // Maximum number of created/spawned threads
     int             socket_fd;          // Server's file descriptor
+    struct config   *server_attrs;      // Server's attributes read from the configuration file
 };
 
 enum kill_type {HARD, SOFT};
@@ -25,12 +26,13 @@ enum kill_type {HARD, SOFT};
 void *_watcher_function(void *args);
 void *_worker_function(void *args);
 
-ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
+ThreadPool *thread_pool_ini(int socket_fd, struct config *server_attrs) {
     ThreadPool* pool;
     int i;
+    int max_threads = server_attrs->max_clients;
 
     if (max_threads < 1) {
-        print_error("max_threads must be greater or equal to 1");
+        print_error("maximum number of clients must be greater or equal to 1");
         socket_close(socket_fd);
         return NULL;
     }
@@ -77,6 +79,7 @@ ThreadPool *thread_pool_ini(int socket_fd, int max_threads) {
     pool->max_threads = max_threads;
     pool->n_active_threads = 0;
     pool->socket_fd = socket_fd;
+    pool->server_attrs = server_attrs;
 
     for (i = 0; i < pool->n_spawned_threads; i++) {
         // Send pool via reference
@@ -167,7 +170,7 @@ void *_worker_function(void *args) {
                     return NULL;
                 }
 
-                while (connection_handler(client_fd) != CLOSE_CONNECTION);
+                while (connection_handler(client_fd, pool->server_attrs) != CLOSE_CONNECTION);
                 socket_close(client_fd);
 
                 pthread_mutex_lock(&pool->shared_mutex);

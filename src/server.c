@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <signal.h>
 
+// The maximum length at which the listening queue might grow is silently limited to 128 on most implementation
+#define MAX_QUEUE_LEN 128
+
 enum kill_type {HARD, SOFT};
 
 // Needs to be declared as global so it can be accessed in signal_handlers
@@ -22,22 +25,22 @@ void SIGTERM_handler(int sig) {
 
 
 int main() {
-    ServerAttributes    *serverAttributes;
-    int                  socked_fd;
-    ThreadPool          *threadPool;
-    sigset_t             signal_to_block;
-    sigset_t             signal_prev;
-    struct sigaction     act;
+    struct config *server_attrs;
+    int socked_fd;
+    ThreadPool *threadPool;
+    sigset_t signal_to_block;
+    sigset_t signal_prev;
+    struct sigaction act;
 
     printf("MYPID: %d\n", getpid());
 
-    serverAttributes = server_attr_load("../files/server.conf");
-    if (serverAttributes == NULL) {
+    server_attrs = config_load("../files/server.conf");
+    if (server_attrs == NULL) {
         return 1;
     }
-    socked_fd = socket_open(serverAttributes->listen_port, 10);
+    socked_fd = socket_open(server_attrs->listen_port, MAX_QUEUE_LEN);
     if (socked_fd < 0) {
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         return 1;
     }
 
@@ -47,20 +50,20 @@ int main() {
     sigaddset(&signal_to_block, SIGTERM);
     if (sigprocmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
         print_error("failed to block signal in father");
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         return 1;
     }
 
-    threadPool = thread_pool_ini(socked_fd, serverAttributes->max_clients);
+    threadPool = thread_pool_ini(socked_fd, server_attrs);
     if (threadPool == NULL) {
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         return 1;
     }
 
     // Unblock signals in father
     if (sigprocmask(SIG_UNBLOCK, &signal_to_block, &signal_prev) < 0) {
         print_error("failed to unblock signal in father");
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         thread_pool_hard_destroy(threadPool);
         return 1;
     }
@@ -70,14 +73,14 @@ int main() {
     act.sa_handler = SIGINT_handler;
     if (sigaction(SIGINT, &act, NULL) < 0) {
         print_error("failed to create SIGINT handler");
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         thread_pool_hard_destroy(threadPool);
         return 1;
     }
     act.sa_handler = SIGTERM_handler;
     if (sigaction(SIGTERM, &act, NULL) < 0) {
         print_error("failed to create SIGTERM handler");
-        server_attr_destroy(serverAttributes);
+        config_destroy(server_attrs);
         thread_pool_hard_destroy(threadPool);
         return 1;
     }
@@ -93,6 +96,6 @@ int main() {
         thread_pool_hard_destroy(threadPool);
     }
 
-    server_attr_destroy(serverAttributes);
+    config_destroy(server_attrs);
     return 0;
 }
