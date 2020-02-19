@@ -224,7 +224,6 @@ void _shrink_pool(ThreadPool *pool) {
     int goal = ceil(0.75 * pool->n_spawned_threads); //TODO: cuantos matamos cada vez?
 
     if (goal < INITIAL_THREADS) {
-        print_info("cannot have less than %d threads", INITIAL_THREADS);
         return;
     }
 
