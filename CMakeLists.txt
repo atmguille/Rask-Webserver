@@ -11,9 +11,8 @@ if (APPLE)
         HINTS /usr/local/lib
         NO_DEFAULT_PATH
     )
+    message(STATUS "CONFUSE_LIB: [${CONFUSE_LIB}]")
 endif()
-
-message(STATUS "CONFUSE_LIB: [${CONFUSE_LIB}]")
 
 add_executable(iterative_server src/iterative_server.c srclib/logging/logging.c srclib/socket/socket.c)
 
