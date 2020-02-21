@@ -68,19 +68,14 @@ int process_request(int client_fd, struct request *request) {
             return PARSE_ERROR;
         } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
             print_error("request is too long"); // TODO: handle this case
-            return ERROR;
+            return REQUEST_TOO_LONG;
         }
     }
 
     if (_is_request_valid(request)) {
         return OK;
     } else {
-        /*socket_send_string(client_fd, "HTTP/1.1 400 Bad Request\r\n"  TODO: commentado hasta que esté el response. Incluso sería mejor que fuera el connection handler el que envie esto al response
-                                      "Content-Type: text/html; charset=UTF-8\r\n"
-                                      "Content-Length: 33"
-                                      "Connection: close\r\n\r\n"
-                                      "<!DOCTYPE html><h1>Bad Request</h1>\r\n");*/
-        return ERROR;
+        return BAD_REQUEST;
     }
 
 }

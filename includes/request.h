@@ -12,6 +12,8 @@
 #define ERROR -1
 #define CLOSE_CONNECTION -2
 #define PARSE_ERROR -3
+#define BAD_REQUEST -4
+#define REQUEST_TOO_LONG -5
 
 struct request {
     char buffer[MAX_BUFFER];
