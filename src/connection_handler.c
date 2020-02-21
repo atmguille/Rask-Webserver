@@ -3,15 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/stat.h>
 #include "../includes/connection_handler.h"
 #include "../srclib/picohttpparser/picohttpparser.h"
 #include "../srclib/logging/logging.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include "../includes/request.h"
-
-#define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
+#include "../includes/response.h"
 
 enum http_method {
     GET,
@@ -19,85 +17,6 @@ enum http_method {
     OPTIONS,
     UNKNOWN
 };
-
-/**
- * Gets filename from the path (if the path is "/", it will use the default one)
- * @param path non-null-terminated path
- * @param length of path
- * @return a null-terminated filename that must be freed
- */
-char *get_filename(const char *path, size_t length, struct config *server_attrs) {
-    size_t base_path_length;
-    char *filename;
-
-    if (length == 1 && *path == '/') {
-        path = server_attrs->default_path;
-        length = strlen(server_attrs->default_path);
-    }
-
-    base_path_length = strlen(server_attrs->base_path);
-    filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
-
-    strncpy(filename, server_attrs->base_path, base_path_length);
-    strncpy(&filename[base_path_length], path, length);
-    filename[length + base_path_length] = '\0';
-
-    return filename;
-}
-
-/**
- * Returns filename from the last dot ('.') on
- * @param filename
- * @return a pointer to the last dot of filename (or NULL if no '.' was found)
- * There's no memory allocation
- */
-const char *find_extension(const char *filename) {
-    const char *cursor;
-    const char *extension = NULL;
-
-    for (cursor = filename; *cursor != '\0'; cursor++) {
-        if (*cursor == '.') {
-            extension = cursor;
-        }
-    }
-
-    return extension;
-}
-
-char *find_content_type(const char *filename) {
-    const char* extension = find_extension(filename);
-
-    MATCH(".txt", "text/plain")
-    MATCH(".html", "text/html")
-    MATCH(".htm", "text/html")
-    MATCH(".gif", "image/gif")
-    MATCH(".jpeg", "image/jpeg")
-    MATCH(".png", "image/png")
-    MATCH(".jpg", "image/jpeg")
-    MATCH(".mpeg", "video/mpeg")
-    MATCH(".mpg", "video/mpeg")
-    MATCH(".mp4", "video/mp4")
-    MATCH(".doc", "application/msword")
-    MATCH(".docx", "application/msword")
-    MATCH(".pdf", "application/pdf")
-
-    return NULL;
-}
-
-/**
- * Gets the file's size in bytes
- * @param filename
- * @return size of filename in bytes or -1 if an error occurred
- */
-size_t _get_file_size(char *filename) {
-    struct stat st;
-    if (stat(filename, &st) == -1) {
-        print_error("couldn't provide %s: %s", filename, strerror(errno));
-        return 0;
-    } else {
-        return st.st_size;
-    }
-}
 
 bool _is_method(struct request *request, char *method) {
     size_t method_len = strlen(method);
@@ -122,12 +41,6 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     enum http_method method;
     int response_code;
 
-    char *filename;
-    size_t file_size;
-    char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
-    FILE* f;
-    DynamicBuffer *db;
-
     // Set client_fd socket timeout
     socket_set_timeout(client_fd, 10);
 
@@ -138,61 +51,28 @@ int connection_handler(int client_fd, struct config *server_attrs) {
 
     response_code = process_request(client_fd, request);
     if (response_code < 0) {
+        if (response_code == BAD_REQUEST) {
+            response_bad_request(client_fd, server_attrs);
+        } else if (response_code == REQUEST_TOO_LONG) {
+            response_request_too_long(client_fd, server_attrs);
+        }
         free(request);
         return response_code;
     }
 
     method = _get_method(request);
     if (method == UNKNOWN) {
-        socket_send_string(client_fd, "HTTP/1.1 501 Not Implemented\r\n"
-                                      "Content-Type: text/html; charset=UTF-8\r\n"
-                                      "Content-Length: 39"
-                                      "Connection: close\r\n\r\n"
-                                      "<!DOCTYPE html><h1>Not Implemented</h1>\r\n");
+        response_not_implemented(client_fd, server_attrs);
         free(request);
         return ERROR;
+    } else if (method == GET) {
+        response_get(client_fd, server_attrs, request);
+    } else if (method == POST) {
+        response_post();
+    } else if (method == OPTIONS) {
+        response_options(client_fd, server_attrs);
     }
 
-
-
-    filename = get_filename(request->path, request->path_len, server_attrs);
-    print_info("%s requested (type %s)", filename, find_content_type(filename));
-    f = fopen(filename, "r");
-    if (f == NULL) {
-        print_error("can't open %s: %s", filename, strerror(errno));
-        socket_send_string(client_fd, "HTTP/1.1 404 Not Found\r\n"
-                                      "Content-Type: text/html; charset=UTF-8\r\n"
-                                      "Content-Length: 33"
-                                      "Connection: close\r\n\r\n"
-                                      "<!DOCTYPE html><h1>Not Found</h1>\r\n");
-        free(request);
-        return ERROR;
-    }
-    file_size = _get_file_size(filename);
-    sprintf(c_file_size, "%zu", file_size);
-
-    // Build the response
-    db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
-    if (db == NULL) {
-        // TODO: send error message
-        free(request);
-        return ERROR;
-    }
-
-    dynamic_buffer_append_string(db, "HTTP/1.1 200 Ok\r\nContent-Type: ");
-    dynamic_buffer_append_string(db, find_content_type(filename));
-    dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
-    dynamic_buffer_append_string(db, "Connection: keep-alive\r\n");
-    dynamic_buffer_append_string(db, "Content-Length: ");
-    dynamic_buffer_append_string(db, c_file_size);
-    dynamic_buffer_append_string(db, "\r\n\r\n");
-    dynamic_buffer_append_file(db, f, file_size);
-    fclose(f);
-
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
-
-    dynamic_buffer_destroy(db);
-    free(filename);
     free(request);
 
     return OK;
