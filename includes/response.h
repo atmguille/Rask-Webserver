@@ -45,8 +45,8 @@ int response_not_implemented(int client_fd, struct config *server_attrs);
  */
 int response_get(int client_fd, struct config *server_attrs, struct request *request);
 
-// TODO
-int response_post();
+// TODO DOCSTRING
+int response_post(int client_fd, struct config *server_attrs, struct request *request);
 
 /**
  * Builds and sends options response

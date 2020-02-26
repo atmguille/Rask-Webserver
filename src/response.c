@@ -277,7 +277,18 @@ int response_options(int client_fd, struct config *server_attrs) {
     return OK;
 }
 
-int response_post() {
-    return OK; // TODO
+int response_post(int client_fd, struct config *server_attrs, struct request *request) {
+    struct phr_header *last_header;
+    const char *body;
+    int body_len;
+
+    // Find the body from the last header
+    last_header = &request->headers[request->num_headers - 1];
+    // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
+    body = &last_header->value[last_header->value_len] + 4;
+    body_len = (int) (request->len_buffer - (body - request->buffer));
+
+    printf("==>%.*s", body_len, body);
+    return OK;
 }
 

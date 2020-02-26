@@ -68,7 +68,7 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     } else if (method == GET) {
         response_get(client_fd, server_attrs, request);
     } else if (method == POST) {
-        response_post();
+        response_post(client_fd, server_attrs, request);
     } else if (method == OPTIONS) {
         response_options(client_fd, server_attrs);
     }
