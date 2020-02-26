@@ -151,7 +151,7 @@ const char *_find_extension(const char *filename) {
     return extension;
 }
 
-char *_find_content_type(const char *filename) {
+char *_get_content_type(const char *filename) {
     const char *extension = _find_extension(filename);
 
     MATCH(".txt", "text/plain")
@@ -203,6 +203,7 @@ long _get_file_last_modified(char *filename) {
 
 int response_get(int client_fd, struct config *server_attrs, struct request *request) {
     char *filename;
+    char *content_type;
     size_t file_size;
     char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     long last_modified;
@@ -215,8 +216,16 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
 
+
     filename = _get_filename(request->path, request->path_len, server_attrs);
-    print_info("%s requested (type %s)", filename, _find_content_type(filename));
+    print_info("%s requested (type %s)", filename, _get_content_type(filename));
+    content_type = _get_content_type(filename);
+    if (content_type == NULL) {
+        print_error("unrecognized content type for %s", filename);
+        response_not_found(client_fd, server_attrs);
+        free(filename);
+        return ERROR;
+    }
     f = fopen(filename, "r");
     if (f == NULL) {
         print_error("can't open %s: %s", filename, strerror(errno));
@@ -234,7 +243,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     }
 
     _add_common_headers(db, server_attrs, 200, "OK");
-    dynamic_buffer_append_string(db, _find_content_type(filename));
+    dynamic_buffer_append_string(db, _get_content_type(filename));
     dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
     dynamic_buffer_append_string(db, "Content-Length: ");
     dynamic_buffer_append_string(db, c_file_size);
