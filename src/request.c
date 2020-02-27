@@ -36,7 +36,7 @@ int process_request(int client_fd, struct request *request) {
         while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 &&
                errno == EINTR) {}
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            print_info("timeout");
+            print_info("timeout"); // TODO: revisar porque pasado un rato los saca instantaneamente (solo pasa a veces)
             return CLOSE_CONNECTION;
         } else if (ret < 0) {
             print_error("failed to read from client: %s", strerror(errno));
