@@ -37,6 +37,14 @@ int response_not_found(int client_fd, struct config *server_attrs);
 int response_not_implemented(int client_fd, struct config *server_attrs);
 
 /**
+ * Builds and sends internal server error response
+ * @param client_fd
+ * @param server_attrs
+ * @return
+ */
+int response_internal_server_error(int client_fd, struct config *server_attrs);
+
+/**
  * Builds and sends get response following parameters specified in request
  * @param client_fd
  * @param server_attrs

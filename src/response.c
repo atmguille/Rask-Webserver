@@ -2,6 +2,7 @@
 #include "../srclib/socket/socket.h"
 #include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include "../srclib/logging/logging.h"
+#include "../srclib/execute_scripts/execute_scripts.h"
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
@@ -107,6 +108,10 @@ int response_not_implemented(int client_fd, struct config *server_attrs) {
     return _response_error(client_fd, server_attrs, 501, "Not Implemented");
 }
 
+int response_internal_server_error(int client_fd, struct config *server_attrs) {
+    return _response_error(client_fd, server_attrs, 500, "Internal Server Error");
+}
+
 /**
  * Gets filename from the path (if the path is "/", it will use the default one)
  * @param path non-null-terminated path
@@ -201,6 +206,34 @@ long _get_file_last_modified(char *filename) {
     }
 }
 
+int _response_cgi(int client_fd, struct config *server_attrs, struct request *request, const char *args, int len_args) {
+    char *filename;
+    char *output;
+    const char *extension;
+
+    filename = _get_filename(request->path, request->path_len, server_attrs);
+    extension = _find_extension(filename);
+    if (strcmp(extension, ".py") == 0) {
+        output = execute_python_script(filename, args, len_args);
+    } else if (strcmp(extension, ".php") == 0) {
+        output = execute_php_script(filename, args, len_args);
+    } else {
+        response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
+        return BAD_REQUEST;
+    }
+
+    if (output == NULL) {
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+
+
+
+    free(filename);
+    free(output);
+    return OK;
+}
+
 int response_get(int client_fd, struct config *server_attrs, struct request *request) {
     char *filename;
     char *content_type;
@@ -213,6 +246,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
+        response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
 
@@ -239,6 +273,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     last_modified = _get_file_last_modified(filename);
     if (strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified))) == 0) {
         print_error("failed to get last modified date");
+        response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
 
@@ -264,6 +299,7 @@ int response_options(int client_fd, struct config *server_attrs) {
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
+        response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
 
@@ -288,7 +324,7 @@ int response_post(int client_fd, struct config *server_attrs, struct request *re
     body = &last_header->value[last_header->value_len] + 4;
     body_len = (int) (request->len_buffer - (body - request->buffer));
 
-    printf("==>%.*s", body_len, body);
-    return OK;
+    return _response_cgi(client_fd, server_attrs, request, body, body_len);
+
 }
 
