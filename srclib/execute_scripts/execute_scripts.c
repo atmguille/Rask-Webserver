@@ -26,7 +26,7 @@ char *_execute_script(char *interpreter, char *path, const char *stdin_args, int
     pid_t pid;
     char *output;
 
-    output = (char *)malloc(MAX_SIZE * sizeof(char));
+    output = (char *)calloc(MAX_SIZE, sizeof(char));
     if (output == NULL) {
         print_error("failed to allocate memory for return string");
         return NULL;
