@@ -20,7 +20,7 @@ enum { READ = 0, WRITE = 1 };
  * @param len_stdin_args
  * @return string that must be freed with the script output
  */
-char *_execute_script(char *interpreter, char *path, char *stdin_args, int len_stdin_args) {
+char *_execute_script(char *interpreter, char *path, const char *stdin_args, int len_stdin_args) {
     int stdin_pipe[2];
     int stdout_pipe[2];
     pid_t pid;
@@ -88,10 +88,10 @@ char *_execute_script(char *interpreter, char *path, char *stdin_args, int len_s
 
 }
 
-char *execute_python_script(char *path, char *stdin_args, int len_stdin_args) {
+char *execute_python_script(char *path, const char *stdin_args, int len_stdin_args) {
     return _execute_script("python3", path, stdin_args, len_stdin_args);
 }
 
-char *execute_php_script(char *path, char *stdin_args, int len_stdin_args) {
+char *execute_php_script(char *path, const char *stdin_args, int len_stdin_args) {
     return _execute_script("php", path, stdin_args, len_stdin_args);
 }
