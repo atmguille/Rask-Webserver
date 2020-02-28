@@ -37,6 +37,14 @@ size_t dynamic_buffer_append(DynamicBuffer *db, const void *src, size_t size);
 size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string);
 
 /**
+ * Appends a size_t number
+ * @param db
+ * @param n size_t number
+ * @return number of bytes written to the buffer
+ */
+size_t dynamic_buffer_append_number(DynamicBuffer *db, size_t n);
+
+/**
  * Appends size bytes of the file f to db
  * @param db
  * @param f file
