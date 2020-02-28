@@ -8,7 +8,7 @@ echo "Script PHP\n\n";
 
 echo "Recibido por STDIN:\n";
 while( $line = fgets( $f ) ) {
-  echo $line;
+  echo "$line\n";
 }
 echo "Fin de datos\n";
 
