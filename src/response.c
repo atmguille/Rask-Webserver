@@ -233,12 +233,15 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
         print_error("failed to allocate memory for dynamic buffer");
         response_internal_server_error(client_fd, server_attrs);
         free(filename);
-        free(script_output);
+        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
     if (_add_common_headers(response, server_attrs, 200, "OK") != 0) {
         response_internal_server_error(client_fd, server_attrs);
+        dynamic_buffer_destroy(response);
+        free(filename);
+        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
@@ -248,6 +251,10 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
         dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
         dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output)) == 0) {
 
+        response_internal_server_error(client_fd, server_attrs);
+        dynamic_buffer_destroy(response);
+        free(filename);
+        dynamic_buffer_destroy(script_output);
         print_error("failed to response CGI because of dynamic buffer");
         return ERROR;
     }
@@ -256,7 +263,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
 
     dynamic_buffer_destroy(response);
     free(filename);
-    free(script_output);
+    dynamic_buffer_destroy(script_output);
     return OK;
 }
 
