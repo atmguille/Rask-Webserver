@@ -208,71 +208,61 @@ long _get_file_last_modified(char *filename) {
 
 int _response_cgi(int client_fd, struct config *server_attrs, struct request *request, const char *args, int len_args) {
     char *filename;
-    char *output;
+    DynamicBuffer *script_output;
     const char *extension;
-    int output_len;
-    char c_output_len[5];
-    DynamicBuffer *db;
+    char c_output_len[15];
+    DynamicBuffer *response;
 
     filename = _get_filename(request->path, request->path_len, server_attrs);
     extension = _find_extension(filename);
     if (strcmp(extension, ".py") == 0) {
-        output = execute_python_script(filename, args, len_args);
+        script_output = execute_python_script(filename, args, len_args);
     } else if (strcmp(extension, ".php") == 0) {
-        output = execute_php_script(filename, args, len_args);
+        script_output = execute_php_script(filename, args, len_args);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
         free(filename);
         return BAD_REQUEST;
     }
 
-    if (output == NULL) {
+    if (script_output == NULL) {
         response_internal_server_error(client_fd, server_attrs);
         free(filename);
         return ERROR;
     }
 
-    // TODO: esta solución es muy sucia... dependemos de que los uĺtimos dos bytes sean \r\n (especificado el moodle), y que no haya un \r por ahí perdido...hay que estudiarlo bien
-    for (output_len = 0; output[output_len] != '\r'; output_len++);
-    if (output[++output_len] != '\n') {
-        response_internal_server_error(client_fd, server_attrs);
-        print_error("failed to compute script output length");
-        free(filename);
-        free(output);
-        return ERROR;
-    }
 
-    sprintf(c_output_len, "%d", ++output_len);
+    sprintf(c_output_len, "%zu", dynamic_buffer_get_size(script_output));
 
-    db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
-    if (db == NULL) {
+    response = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
+    if (response == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
         response_internal_server_error(client_fd, server_attrs);
         free(filename);
-        free(output);
+        free(script_output);
         return ERROR;
     }
 
-    if (_add_common_headers(db, server_attrs, 200, "OK") != 0) {
+    if (_add_common_headers(response, server_attrs, 200, "OK") != 0) {
         response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
 
-    if (dynamic_buffer_append_string(db, "Content-Type: text/plain; charset=UTF-8\r\n"
+    if (dynamic_buffer_append_string(response, "Content-Type: text/html; charset=UTF-8\r\n"
                                          "Content-Length: ") == 0 ||
-        dynamic_buffer_append_string(db, c_output_len) == 0 ||
-        dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
-        dynamic_buffer_append_string(db, output) == 0) {
+        dynamic_buffer_append_string(response, c_output_len) == 0 ||
+        dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
+        dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output)) == 0) {
 
         print_error("failed to response CGI because of dynamic buffer");
         return ERROR;
     }
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response));
 
-    dynamic_buffer_destroy(db);
+    dynamic_buffer_destroy(response);
     free(filename);
-    free(output);
+    free(script_output);
     return OK;
 }
 
@@ -280,7 +270,6 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     char *filename;
     char *content_type;
     size_t file_size;
-    size_t bytes_read;
     char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     long last_modified;
     char c_last_modified[GENERAL_SIZE];
@@ -339,21 +328,10 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     dynamic_buffer_append_string(db, "\r\n");
     dynamic_buffer_append_string(db, c_last_modified);
     dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
-
-    // Add the file chunked
-    while (file_size > 0) {
-        bytes_read = dynamic_buffer_append_file_chunked(db, f);
-        file_size -= bytes_read;
-        if (dynamic_buffer_is_full(db)) {
-            socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
-            dynamic_buffer_clear(db);
-        }
-    }
+    dynamic_buffer_append_file(db, f, file_size);
     fclose(f);
 
-    if (!dynamic_buffer_is_empty(db)) {
-        socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
-    }
+    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
 
     dynamic_buffer_destroy(db);
     free(filename);
