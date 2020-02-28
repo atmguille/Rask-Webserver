@@ -62,7 +62,6 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
  * @return
  */
 int _response_error(int client_fd, struct config *server_attrs, int status_code, char *message) {
-    char content_length[GENERAL_SIZE];
     char body[GENERAL_SIZE];
 
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
@@ -76,12 +75,11 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
         return -1;
     }
 
-    sprintf(content_length, "%lu", ERROR_BODY_LEN + strlen(message));
     sprintf(body, "<!DOCTYPE html><h1>%s</h1>\r\n", message);
 
     if (dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\n"
                                      "Content-Length: ") == 0 ||
-        dynamic_buffer_append_string(db, content_length) == 0 ||
+        dynamic_buffer_append_number(db, (ERROR_BODY_LEN + strlen(message))) == 0 ||
         dynamic_buffer_append_string(db, "\r\nConnection: close\r\n\r\n") == 0 || // TODO: cerramos conexion seguro???
         dynamic_buffer_append_string(db, body) == 0) {
 
