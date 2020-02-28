@@ -80,7 +80,7 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string) {
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     size_t bytes_read;
     if (db == NULL || f == NULL) {
-        print_warning("NULL passed to dynamic_buffer_append");
+        print_warning("NULL passed to dynamic_buffer_append_file");
         return 0;
     }
 
@@ -93,6 +93,36 @@ size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     bytes_read = fread(&db->buffer[db->size], sizeof(char), size, f);
     db->size += bytes_read;
     return bytes_read;
+}
+
+size_t dynamic_buffer_append_file_chunked(DynamicBuffer *db, FILE *f) {
+    size_t bytes_read;
+    size_t available_space;
+
+    if (db == NULL || f == NULL) {
+        print_warning("NULL passed to dynamic_buffer_append_file_chunked");
+        return 0;
+    }
+
+    available_space = db->capacity - db->size;
+    bytes_read = fread(&db->buffer[db->size], sizeof(char), available_space, f);
+    db->size += bytes_read;
+
+    return bytes_read;
+}
+
+bool dynamic_buffer_is_empty(DynamicBuffer *db) {
+    return db != NULL && db->size == 0;
+}
+
+bool dynamic_buffer_is_full(DynamicBuffer *db) {
+    return db != NULL && db->size == db->capacity;
+}
+
+void dynamic_buffer_clear(DynamicBuffer *db) {
+    if (db != NULL) {
+        db->size = 0;
+    }
 }
 
 const void *dynamic_buffer_get_buffer(DynamicBuffer *db) {

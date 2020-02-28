@@ -1,9 +1,12 @@
 #ifndef DYNAMIC_BUFFER_H
 #define DYNAMIC_BUFFER_H
 
+#include <stdbool.h>
+
 #define DEFAULT_INITIAL_CAPACITY 4096
 
 typedef struct _DynamicBuffer DynamicBuffer;
+
 
 /**
  * Creates a dynamic_buffer
@@ -18,7 +21,7 @@ DynamicBuffer *dynamic_buffer_ini(int initial_capacity);
  * @param db
  * @param src
  * @param size number of bytes to be copied from src to db
- * @return size or 0 if some error occurred
+ * @return number of bytes read (size if no errors occurred)
  */
 size_t dynamic_buffer_append(DynamicBuffer *db, const void *src, size_t size);
 
@@ -26,19 +29,44 @@ size_t dynamic_buffer_append(DynamicBuffer *db, const void *src, size_t size);
  * Appends string to db
  * @param db
  * @param string
- * @return size of 0 if some error occurred
+ * @return number of bytes read (strlen(string) if no errors occurred)
  */
 size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string);
-
 
 /**
  * Appends size bytes of the file f to db
  * @param db
  * @param f file
  * @param size in bytes to be copied from f to db
- * @return size of 0 if an error occurred
+ * @return number of bytes read (size if no errors occurred)
  */
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size);
+
+/**
+ * Appends the contents of f to the internal buffer WITHOUT resizing it
+ * @param db
+ * @param f
+ * @return the number of bytes read
+ */
+size_t dynamic_buffer_append_file_chunked(DynamicBuffer *db, FILE *f);
+
+/**
+ * @param db
+ * @return true if db is not null and emtpy
+ */
+bool dynamic_buffer_is_empty(DynamicBuffer *db);
+
+/**
+ * @param db
+ * @return true if db is not null and full
+ */
+bool dynamic_buffer_is_full(DynamicBuffer *db);
+
+/**
+ * Clears the dynamic buffer db
+ * @param db
+ */
+void dynamic_buffer_clear(DynamicBuffer *db);
 
 /**
  * Gets the internal buffer
@@ -50,7 +78,7 @@ const void *dynamic_buffer_get_buffer(DynamicBuffer *db);
 /**
  * Gets the internal buffer's size
  * @param db
- * @return the size (in bytes) o 0 if db is NULL
+ * @return the size of the internal buffer (in bytes) or 0 if db is NULL
  */
 size_t dynamic_buffer_get_size(DynamicBuffer *db);
 
