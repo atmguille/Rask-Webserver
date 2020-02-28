@@ -210,7 +210,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
     char *filename;
     DynamicBuffer *script_output;
     const char *extension;
-    char c_output_len[15];
     DynamicBuffer *response;
 
     filename = _get_filename(request->path, request->path_len, server_attrs);
@@ -231,9 +230,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
         return ERROR;
     }
 
-
-    sprintf(c_output_len, "%zu", dynamic_buffer_get_size(script_output));
-
     response = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (response == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
@@ -250,7 +246,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
 
     if (dynamic_buffer_append_string(response, "Content-Type: text/html; charset=UTF-8\r\n"
                                          "Content-Length: ") == 0 ||
-        dynamic_buffer_append_string(response, c_output_len) == 0 ||
+        dynamic_buffer_append_number(response, dynamic_buffer_get_size(script_output)) == 0 ||
         dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
         dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output)) == 0) {
 
@@ -270,7 +266,6 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     char *filename;
     char *content_type;
     size_t file_size;
-    char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     long last_modified;
     char c_last_modified[GENERAL_SIZE];
     FILE* f;
@@ -310,7 +305,6 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
     file_size = _get_file_size(filename);
-    sprintf(c_file_size, "%zu", file_size);
 
     last_modified = _get_file_last_modified(filename);
     if (strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified))) == 0) {
@@ -324,7 +318,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     dynamic_buffer_append_string(db, _get_content_type(filename));
     dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
     dynamic_buffer_append_string(db, "Content-Length: ");
-    dynamic_buffer_append_string(db, c_file_size);
+    dynamic_buffer_append_number(db, file_size);
     dynamic_buffer_append_string(db, "\r\n");
     dynamic_buffer_append_string(db, c_last_modified);
     dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");

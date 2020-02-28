@@ -78,6 +78,22 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string) {
     return dynamic_buffer_append(db, (const void *) string, strlen(string));
 }
 
+size_t dynamic_buffer_append_number(DynamicBuffer *db, size_t n) {
+    size_t bytes_read;
+
+    if (db == NULL) {
+        print_warning("NULL passed to dynamic_buffer_append_number");
+        return 0;
+    }
+
+    _grow_buffer(db, 20); // 18446744073709551615UL is the maximum 64 bit unsigned number
+
+    bytes_read = snprintf(&db->buffer[db->size], 20, "%zu", n);
+    db->size += bytes_read;
+
+    return bytes_read;
+}
+
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     size_t bytes_read;
 
