@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <zconf.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include "../includes/request.h"
 #include "../srclib/logging/logging.h"
 

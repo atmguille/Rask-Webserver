@@ -23,4 +23,4 @@ for line in sys.argv:
 print("Fin de datos")
 
 
-print("\n\nFin del script\n\r")
+print("\n\nFin del script")

@@ -22,5 +22,5 @@ echo "Fin de datos\n";
 
 
 fclose( $f );
-echo "\n\nFin del script\n\r\n";
+echo "\n\nFin del script\n";
 ?>

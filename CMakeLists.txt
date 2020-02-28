@@ -14,7 +14,7 @@ if (APPLE)
     message(STATUS "CONFUSE_LIB: [${CONFUSE_LIB}]")
 endif()
 
-add_executable(main src/main.c srclib/url_encoded_form_parser/url_encoded_form_parser.c srclib/url_encoded_form_parser/url_encoded_form_parser.h)
+#add_executable(main src/main.c srclib/url_encoded_form_parser/url_encoded_form_parser.c srclib/url_encoded_form_parser/url_encoded_form_parser.h)
 
 
 find_package(Threads REQUIRED)
