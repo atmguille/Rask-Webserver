@@ -223,7 +223,7 @@ void _shrink_pool(ThreadPool *pool) {
     int i;
     int goal = ceil(0.75 * pool->n_spawned_threads); //TODO: cuantos matamos cada vez?
 
-    if (goal < INITIAL_THREADS) {
+    if (goal < INITIAL_THREADS || goal == pool->n_spawned_threads) {
         return;
     }
 
@@ -248,7 +248,7 @@ void *_watcher_function(void *args) {
     int executing_threads;
 
     while(true) {
-        sleep(WATCHER_FREQUENCY);
+        usleep(1000 * WATCHER_FREQUENCY);
 
         pthread_mutex_lock(&t_pool->shared_mutex);
         executing_threads = t_pool->n_active_threads;

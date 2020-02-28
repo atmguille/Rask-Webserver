@@ -2,16 +2,7 @@
 #define CONNECTION_HANDLER_H
 
 #include "../includes/config_parser.h"
-
-#define MAX_BUFFER 8192
-#define MAX_HEADERS 32
-
-#define OK 0
-#define ERROR -1
-#define CLOSE_CONNECTION -2
-#define PARSE_ERROR -3
-
-typedef struct _Request Request;
+#include "../includes/request.h" // TODO: esto es para que otros archivos que dependan del connection handler tengan los codigos de estado, quizas mejor algo comun
 
 /**
  * Handles a connection with the client, reading a request and answering with the requested data

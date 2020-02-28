@@ -32,8 +32,6 @@ int main() {
     sigset_t signal_prev;
     struct sigaction act;
 
-    printf("MYPID: %d\n", getpid());
-
     server_attrs = config_load("../files/server.conf");
     if (server_attrs == NULL) {
         return 1;
