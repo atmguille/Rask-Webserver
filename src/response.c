@@ -275,7 +275,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     for (i = 0; i < request->path_len; i++) { // TODO: comprobar también Content-Type o pa que?
         if (request->path[i] == '?') {
             int len_args = (int)request->path_len - (i+1);
-            request->path_len = i; // Update length so path ends just before ? TODO: guarrería u obra de arte?
+            request->path_len = i; // Update length so path ends just before ?
             return _response_cgi(client_fd, server_attrs, request, &request->path[i+1], len_args);
         }
     }

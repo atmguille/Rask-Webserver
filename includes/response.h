@@ -4,6 +4,8 @@
 #include "../includes/config_parser.h"
 #include "../includes/request.h"
 
+// TODO: especificar return en docstring cuando tengamos bien hechos los códigos de return
+
 /**
  * Builds and sends bad request response
  * @param client_fd
@@ -53,7 +55,13 @@ int response_internal_server_error(int client_fd, struct config *server_attrs);
  */
 int response_get(int client_fd, struct config *server_attrs, struct request *request);
 
-// TODO DOCSTRING
+/**
+ * Builds and sends post response, extracting parameters from request body
+ * @param client_fd
+ * @param server_attrs
+ * @param request
+ * @return
+ */
 int response_post(int client_fd, struct config *server_attrs, struct request *request);
 
 /**
