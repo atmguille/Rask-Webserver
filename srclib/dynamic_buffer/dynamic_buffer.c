@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "dynamic_buffer.h"
 #include "../logging/logging.h"
@@ -79,6 +80,7 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string) {
 
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     size_t bytes_read;
+
     if (db == NULL || f == NULL) {
         print_warning("NULL passed to dynamic_buffer_append_file");
         return 0;
@@ -93,6 +95,28 @@ size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     bytes_read = fread(&db->buffer[db->size], sizeof(char), size, f);
     db->size += bytes_read;
     return bytes_read;
+}
+
+size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd) {
+    size_t bytes_read;
+    size_t total_bytes_read = 0;
+
+
+    do {
+        bytes_read = read(fd, &db->buffer[db->size], db->capacity - db->size);
+        print_debug("Read %zu bytes from fd", bytes_read);
+        total_bytes_read += bytes_read;
+        db->size += bytes_read;
+
+        // If EOF reached, no need to grow the buffer any further
+        if (db->size < db->capacity) {
+            break;
+        } else {
+            _grow_buffer(db, DEFAULT_FD_BUFFER);
+        }
+    } while (bytes_read > 0);
+
+    return total_bytes_read;
 }
 
 size_t dynamic_buffer_append_file_chunked(DynamicBuffer *db, FILE *f) {

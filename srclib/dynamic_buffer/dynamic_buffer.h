@@ -1,9 +1,12 @@
 #ifndef DYNAMIC_BUFFER_H
 #define DYNAMIC_BUFFER_H
 
+#include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 #define DEFAULT_INITIAL_CAPACITY 4096
+#define DEFAULT_FD_BUFFER 256
 
 typedef struct _DynamicBuffer DynamicBuffer;
 
@@ -41,6 +44,15 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string);
  * @return number of bytes read (size if no errors occurred)
  */
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size);
+
+
+/**
+ * Appends the data received by fd to db
+ * @param db
+ * @param fd file descriptor
+ * @return size of the data received
+ */
+size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd);
 
 /**
  * Appends the contents of f to the internal buffer WITHOUT resizing it
