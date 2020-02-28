@@ -258,7 +258,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
         return ERROR;
     }
 
-    if (dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\n"
+    if (dynamic_buffer_append_string(db, "Content-Type: text/plain; charset=UTF-8\r\n"
                                          "Content-Length: ") == 0 ||
         dynamic_buffer_append_string(db, c_output_len) == 0 ||
         dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
@@ -280,6 +280,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     char *filename;
     char *content_type;
     size_t file_size;
+    size_t bytes_read;
     char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
     long last_modified;
     char c_last_modified[GENERAL_SIZE];
@@ -338,10 +339,21 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     dynamic_buffer_append_string(db, "\r\n");
     dynamic_buffer_append_string(db, c_last_modified);
     dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
-    dynamic_buffer_append_file(db, f, file_size);
+
+    // Add the file chunked
+    while (file_size > 0) {
+        bytes_read = dynamic_buffer_append_file_chunked(db, f);
+        file_size -= bytes_read;
+        if (dynamic_buffer_is_full(db)) {
+            socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+            dynamic_buffer_clear(db);
+        }
+    }
     fclose(f);
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    if (!dynamic_buffer_is_empty(db)) {
+        socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    }
 
     dynamic_buffer_destroy(db);
     free(filename);

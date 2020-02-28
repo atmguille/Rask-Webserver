@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <zconf.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include "../includes/request.h"
 #include "../srclib/logging/logging.h"
 
@@ -35,8 +35,8 @@ int process_request(int client_fd, struct request *request) {
         // Keep on reading if the read function was interrupted by a signal
         while ((ret = read(client_fd, &request->buffer[request->len_buffer], MAX_BUFFER - request->len_buffer)) == -1 &&
                errno == EINTR) {}
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            print_info("timeout"); // TODO: revisar porque pasado un rato los saca instantaneamente (solo pasa a veces)
+        if (ret == ERROR && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            print_info("timeout %d (%d)", errno, ret); // TODO: revisar porque pasado un rato los saca instantaneamente (solo pasa a veces)
             return CLOSE_CONNECTION;
         } else if (ret < 0) {
             print_error("failed to read from client: %s", strerror(errno));
