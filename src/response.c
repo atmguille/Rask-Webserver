@@ -245,7 +245,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
         return ERROR;
     }
 
-    if (dynamic_buffer_append_string(response, "Content-Type: text/html; charset=UTF-8\r\n"
+    if (dynamic_buffer_append_string(response, "Content-Type: text/plain; charset=UTF-8\r\n"
                                          "Content-Length: ") == 0 ||
         dynamic_buffer_append_number(response, dynamic_buffer_get_size(script_output)) == 0 ||
         dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
