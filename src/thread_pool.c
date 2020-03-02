@@ -115,8 +115,10 @@ void _soft_kill(int sig) {
  * @param client_fd
  */
 static void _cleanup_handler(void *client_fd) {
-    socket_close(*((int *)client_fd));
-    print_debug("client_fd closed");
+    if (*((int *)client_fd) != -1) {
+        socket_close(*((int *)client_fd));
+        print_debug("client_fd closed");
+    }
 }
 
 /**
@@ -128,14 +130,15 @@ void *_worker_function(void *args) {
     sigset_t signal_to_block;
     sigset_t signal_prev;
     struct sigaction act;
-    char buffer[BUFFER_LEN];
-    int client_fd;
+    int client_fd = -1;
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
     pthread_cleanup_push(_cleanup_handler, (void *)&client_fd);
 
             act.sa_flags = 0;
+            sigemptyset(&signal_prev);
+            act.sa_mask = signal_prev; // So as to avoid valgrind warning
             act.sa_handler = _soft_kill;
             if (sigaction(SIGURG, &act, NULL) < 0) {
                 print_error("Error creating signal handler");

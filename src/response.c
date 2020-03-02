@@ -231,7 +231,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, char *args, int le
     // Check if filename exists
     if (access(filename, F_OK) == -1) {
         response_not_found(client_fd, server_attrs);
-        free(filename);
         return ERROR;
     }
 
