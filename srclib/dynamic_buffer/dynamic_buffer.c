@@ -124,13 +124,10 @@ size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd) {
         total_bytes_read += bytes_read;
         db->size += bytes_read;
 
-        // If EOF reached, no need to grow the buffer any further
-        if (db->size < db->capacity) {
-            break;
-        } else {
+        if (db->size == db->capacity) {
             _grow_buffer(db, DEFAULT_FD_BUFFER);
         }
-    } while (bytes_read > 0);
+    } while (bytes_read > 0); // Read until EOF is reached
 
     return total_bytes_read;
 }
