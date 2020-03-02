@@ -6,6 +6,7 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
 
@@ -127,6 +128,10 @@ char *_get_filename(const char *path, size_t length, struct config *server_attrs
 
     base_path_length = strlen(server_attrs->base_path);
     filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
+    if (filename == NULL) {
+        print_error("failed to allocate memory for filename");
+        return NULL;
+    }
 
     strncpy(filename, server_attrs->base_path, base_path_length);
     strncpy(&filename[base_path_length], path, length);
@@ -154,8 +159,13 @@ const char *_find_extension(const char *filename) {
     return extension;
 }
 
-char *_get_content_type(const char *filename) {
-    const char *extension = _find_extension(filename);
+/**
+ * Returns content type from the specified extension
+ * @param extension
+ * @return content type
+ * There's no memory allocation
+ */
+char *_get_content_type(const char *extension) {
 
     MATCH(".txt", "text/plain")
     MATCH(".html", "text/html")
@@ -204,27 +214,38 @@ long _get_file_last_modified(char *filename) {
     }
 }
 
-int _response_cgi(int client_fd, struct config *server_attrs, struct request *request, const char *args, int len_args) {
-    char *filename;
+/**
+ * Builds and sends cgi response, executing the desired script
+ * @param client_fd
+ * @param server_attrs
+ * @param args
+ * @param len_args
+ * @param filename
+ * @param extension
+ * @return status
+ */
+int _response_cgi(int client_fd, struct config *server_attrs, char *args, int len_args, char *filename, const char *extension) {
     DynamicBuffer *script_output;
-    const char *extension;
     DynamicBuffer *response;
 
-    filename = _get_filename(request->path, request->path_len, server_attrs);
-    extension = _find_extension(filename);
+    // Check if filename exists
+    if (access(filename, F_OK) == -1) {
+        response_not_found(client_fd, server_attrs);
+        free(filename);
+        return ERROR;
+    }
+
     if (strcmp(extension, ".py") == 0) {
         script_output = execute_python_script(filename, args, len_args);
     } else if (strcmp(extension, ".php") == 0) {
         script_output = execute_php_script(filename, args, len_args);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
-        free(filename);
         return BAD_REQUEST;
     }
 
     if (script_output == NULL) {
         response_internal_server_error(client_fd, server_attrs);
-        free(filename);
         return ERROR;
     }
 
@@ -232,7 +253,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
     if (response == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
         response_internal_server_error(client_fd, server_attrs);
-        free(filename);
         dynamic_buffer_destroy(script_output);
         return ERROR;
     }
@@ -240,7 +260,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
     if (_add_common_headers(response, server_attrs, 200, "OK") != 0) {
         response_internal_server_error(client_fd, server_attrs);
         dynamic_buffer_destroy(response);
-        free(filename);
         dynamic_buffer_destroy(script_output);
         return ERROR;
     }
@@ -253,7 +272,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
 
         response_internal_server_error(client_fd, server_attrs);
         dynamic_buffer_destroy(response);
-        free(filename);
         dynamic_buffer_destroy(script_output);
         print_error("failed to response CGI because of dynamic buffer");
         return ERROR;
@@ -262,13 +280,14 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
     socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response));
 
     dynamic_buffer_destroy(response);
-    free(filename);
     dynamic_buffer_destroy(script_output);
     return OK;
 }
 
+
 int response_get(int client_fd, struct config *server_attrs, struct request *request) {
     char *filename;
+    const char *extension;
     char *content_type;
     size_t file_size;
     size_t bytes_read;
@@ -276,15 +295,19 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     char c_last_modified[GENERAL_SIZE];
     FILE* f;
     DynamicBuffer *db;
-    int i;
 
-    // Look for ? to detect CGI
-    for (i = 0; i < request->path_len; i++) { // TODO: comprobar también Content-Type o pa que?
-        if (request->path[i] == '?') {
-            int len_args = (int)request->path_len - (i+1);
-            request->path_len = i; // Update length so path ends just before ?
-            return _response_cgi(client_fd, server_attrs, request, &request->path[i+1], len_args);
-        }
+    filename = _get_filename(request->path, request->path_len, server_attrs);
+    if (filename == NULL) {
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+    extension = _find_extension(filename);
+
+    // Check if extension is cgi type
+    if (strcmp(extension, ".py") == 0 || strcmp(extension, ".php") == 0) {
+        int cgi_ret = _response_cgi(client_fd, server_attrs, request->url_args, request->url_args_len, filename, extension);
+        free(filename);
+        return cgi_ret;
     }
 
     db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
@@ -294,15 +317,15 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
 
-    filename = _get_filename(request->path, request->path_len, server_attrs);
-    print_info("%s requested (type %s)", filename, _get_content_type(filename));
-    content_type = _get_content_type(filename);
+    content_type = _get_content_type(extension);
     if (content_type == NULL) {
         print_error("unrecognized content type for %s", filename);
         response_not_found(client_fd, server_attrs);
         free(filename);
         return ERROR;
     }
+
+    print_debug("%s requested (type %s)", filename, content_type);
     f = fopen(filename, "r");
     if (f == NULL) {
         print_error("can't open %s: %s", filename, strerror(errno));
@@ -316,12 +339,13 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     if (strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified))) == 0) {
         print_error("failed to get last modified date");
         response_internal_server_error(client_fd, server_attrs);
+        free(filename);
         return ERROR;
     }
 
     _add_common_headers(db, server_attrs, 200, "OK");
     dynamic_buffer_append_string(db, "Content-Type: ");
-    dynamic_buffer_append_string(db, _get_content_type(filename));
+    dynamic_buffer_append_string(db, content_type);
     dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
     dynamic_buffer_append_string(db, "Content-Length: ");
     dynamic_buffer_append_number(db, file_size);
@@ -368,19 +392,20 @@ int response_options(int client_fd, struct config *server_attrs) {
 }
 
 int response_post(int client_fd, struct config *server_attrs, struct request *request) {
-    struct phr_header *last_header;
-    const char *body;
-    int body_len;
+    char *filename;
+    const char *extension;
+    int cgi_ret;
+
+    if ((filename = _get_filename(request->path, request->path_len, server_attrs)) == NULL) {
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+    extension = _find_extension(filename);
 
     // TODO: comprobar header Content-Type: application/x-www-form-urlencoded para el formato o podemos suponer que siempre van con ese formato o como...?
 
-    // Find the body from the last header
-    last_header = &request->headers[request->num_headers - 1];
-    // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
-    body = &last_header->value[last_header->value_len] + 4;
-    body_len = (int) (request->len_buffer - (body - request->buffer));
-
-    return _response_cgi(client_fd, server_attrs, request, body, body_len);
-
+    cgi_ret = _response_cgi(client_fd, server_attrs, request->body, request->body_len, filename, extension);
+    free(filename);
+    return cgi_ret;
 }
 
