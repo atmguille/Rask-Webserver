@@ -23,9 +23,13 @@ struct request {
     size_t method_len;
     char *path;
     size_t path_len;
+    char *url_args;
+    size_t url_args_len;
     int minor_version;
     struct phr_header headers[MAX_HEADERS];
     size_t num_headers;
+    char *body;
+    size_t body_len;
 };
 
 /**

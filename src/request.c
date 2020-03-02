@@ -28,6 +28,40 @@ bool _is_request_valid(struct request *request) { // TODO: habrá que hacer más
     return true;
 }
 
+/**
+ * Look for url_args after ? and fill the correct fields in the struct
+ * @param request
+ */
+void _parse_url_args(struct request *request) {
+    int i;
+
+    for (i = 0; i < request->path_len; i++) {
+        if (request->path[i] == '?') {
+            request->url_args = &request->path[i+1];
+            request->url_args_len = request->path_len - (i+1);
+            request->path_len = i; // Update length so path ends just before ?
+            return;
+        }
+    }
+    // If there are no url_args
+    request->url_args = NULL;
+    request->url_args_len = 0;
+}
+
+/**
+ * Fill the body fields in the struct with the data after the headers
+ * @param request
+ */
+void _parse_body(struct request *request) {
+    struct phr_header *last_header;
+
+    // Find the body from the last header
+    last_header = &request->headers[request->num_headers - 1];
+    // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
+    request->body = (char *)&last_header->value[last_header->value_len] + 4;
+    request->body_len = request->len_buffer - (request->body - request->buffer);
+}
+
 int process_request(int client_fd, struct request *request) {
     ssize_t ret;
 
@@ -71,6 +105,9 @@ int process_request(int client_fd, struct request *request) {
             return REQUEST_TOO_LONG;
         }
     }
+
+    _parse_url_args(request);
+    _parse_body(request);
 
     if (_is_request_valid(request)) {
         return OK;
