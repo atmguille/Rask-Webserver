@@ -63,6 +63,8 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
 
         if (write(stdin_pipe[WRITE], stdin_args, len_stdin_args) == -1) {
             print_error("failed to write stdin_args to child: %s", strerror(errno));
+            close(stdout_pipe[READ]);
+            close(stdin_pipe[WRITE]);
             kill(pid, SIGKILL);
             wait(NULL);
             return NULL;
