@@ -1,4 +1,5 @@
 #include "../includes/response.h"
+#include "../includes/utils.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include "../srclib/logging/logging.h"
@@ -34,7 +35,7 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
     struct tm tm = *gmtime(&now);
     if (strftime(current_date, sizeof(current_date), "%a, %d %b %Y %H:%M:%S %Z", &tm) == 0) {
         print_error("failed to get current date");
-        return -1;
+        return ERROR;
     }
 
     sprintf(response_line, "HTTP/1.1 %d %s\r\n", status_code, message);
@@ -47,10 +48,10 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
         dynamic_buffer_append_string(db, "\r\n") == 0) {
 
         print_error("failed to add common headers because of dynamic buffer");
-        return -1;
+        return ERROR;
     }
 
-    return 0;
+    return OK;
 
 }
 
@@ -73,7 +74,7 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
 
     if (_add_common_headers(db, server_attrs,status_code, message) != 0) {
         dynamic_buffer_destroy(db);
-        return -1;
+        return ERROR;
     }
 
     sprintf(body, "<!DOCTYPE html><h1>%s</h1>\r\n", message);
@@ -85,10 +86,14 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
         dynamic_buffer_append_string(db, body) == 0) {
 
         print_error("failed to response error because of dynamic buffer");
-        return -1;
+        return ERROR;
     }
 
-    return socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    if (socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db)) < 0) {
+        return ERROR;
+    }
+
+    return OK;
 }
 
 int response_bad_request(int client_fd, struct config *server_attrs) {
@@ -231,7 +236,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, char *args, int le
     // Check if filename exists
     if (access(filename, F_OK) == -1) {
         response_not_found(client_fd, server_attrs);
-        return ERROR;
+        return NOT_FOUND;
     }
 
     if (strcmp(extension, ".py") == 0) {
@@ -276,7 +281,11 @@ int _response_cgi(int client_fd, struct config *server_attrs, char *args, int le
         return ERROR;
     }
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response));
+    if (socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response)) < 0) {
+        dynamic_buffer_destroy(response);
+        dynamic_buffer_destroy(script_output);
+        return ERROR;
+    }
 
     dynamic_buffer_destroy(response);
     dynamic_buffer_destroy(script_output);
@@ -335,12 +344,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     file_size = _get_file_size(filename);
 
     last_modified = _get_file_last_modified(filename);
-    if (strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified))) == 0) {
-        print_error("failed to get last modified date");
-        response_internal_server_error(client_fd, server_attrs);
-        free(filename);
-        return ERROR;
-    }
+    strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified)));
 
     _add_common_headers(db, server_attrs, 200, "OK");
     dynamic_buffer_append_string(db, "Content-Type: ");
@@ -400,8 +404,6 @@ int response_post(int client_fd, struct config *server_attrs, struct request *re
         return ERROR;
     }
     extension = _find_extension(filename);
-
-    // TODO: comprobar header Content-Type: application/x-www-form-urlencoded para el formato o podemos suponer que siempre van con ese formato o como...?
 
     cgi_ret = _response_cgi(client_fd, server_attrs, request->body, request->body_len, filename, extension);
     free(filename);

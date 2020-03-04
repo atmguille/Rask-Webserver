@@ -7,14 +7,6 @@
 #define MAX_BUFFER 8192
 #define MAX_HEADERS 32
 
-// TODO: no seria mejor hacer un enum errors???
-#define OK 0
-#define ERROR -1
-#define CLOSE_CONNECTION -2
-#define PARSE_ERROR -3
-#define BAD_REQUEST -4
-#define REQUEST_TOO_LONG -5
-
 struct request {
     char buffer[MAX_BUFFER];
     size_t len_buffer;

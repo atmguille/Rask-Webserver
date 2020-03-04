@@ -2,6 +2,7 @@
 #include "../srclib/socket/socket.h"
 #include "../srclib/logging/logging.h"
 #include "../includes/connection_handler.h"
+#include "../includes/utils.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>
@@ -130,6 +131,7 @@ void *_worker_function(void *args) {
     sigset_t signal_to_block;
     sigset_t signal_prev;
     struct sigaction act;
+    int response_code;
     int client_fd = -1;
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
@@ -173,7 +175,10 @@ void *_worker_function(void *args) {
                     return NULL;
                 }
 
-                while (connection_handler(client_fd, pool->server_attrs) != CLOSE_CONNECTION);
+                do {
+                    response_code = connection_handler(client_fd, pool->server_attrs);
+                } while (response_code != CLOSE_CONNECTION && response_code != ERROR); // Threads continue accepting other connections
+
                 socket_close(client_fd);
 
                 pthread_mutex_lock(&pool->shared_mutex);

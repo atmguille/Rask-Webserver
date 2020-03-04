@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "../includes/request.h"
 #include "../srclib/logging/logging.h"
+#include "../includes/utils.h"
 
 struct request *request_ini() {
     struct request *request;
@@ -99,7 +100,7 @@ int process_request(int client_fd, struct request *request) {
             break;
         } else if (ret == -1) {
             print_error("error parsing request");
-            return PARSE_ERROR;
+            return BAD_REQUEST;
         } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
             print_error("request is too long"); // TODO: handle this case
             return REQUEST_TOO_LONG;

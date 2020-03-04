@@ -41,18 +41,18 @@ int socket_open(int port, int max_pending_connections) {
 
     if (port < 0 || max_pending_connections < 0) {
         print_error("socket_open arguments must be positive");
-        return ERROR;
+        return -1;
     }
 
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == ERROR) {
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         print_error("failed to create socket: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     // Enable SO_REUSEADDR
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == ERROR) {
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == -1) {
         print_error("failed to set socket's options: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     bzero(&addr, sizeof(addr));
@@ -60,14 +60,14 @@ int socket_open(int port, int max_pending_connections) {
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(socket_fd, (const struct sockaddr*)&addr, sizeof(addr)) == ERROR) {
+    if (bind(socket_fd, (const struct sockaddr*)&addr, sizeof(addr)) == -1) {
         print_error("failed to bind socket: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
-    if (listen(socket_fd, max_pending_connections) == ERROR) {
+    if (listen(socket_fd, max_pending_connections) == -1) {
         print_error("error setting socket as a passive one: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     return socket_fd;
@@ -81,12 +81,12 @@ int socket_accept(int socket_fd) {
 
     if (socket_fd < 0) {
         print_error("negative socket_fd passed to socket_accept");
-        return ERROR;
+        return -1;
     }
 
     if ((client_fd = accept(socket_fd, &addr, &addr_len)) < 0) {
         print_error("error accepting connection: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     client_ip = ip_to_string(&addr);
@@ -101,12 +101,12 @@ ssize_t socket_send(int client_fd, const void* buffer, size_t len) {
 
     if (buffer == NULL) {
         print_error("buffer is null in socket_send");
-        return ERROR;
+        return -1;
     }
 
-    if ((bytes_sent = send(client_fd, buffer, len, 0)) == ERROR) { // We are not going to use FLAGS
+    if ((bytes_sent = send(client_fd, buffer, len, 0)) == -1) { // We are not going to use FLAGS
         print_error("error sending data through the socket: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     print_debug("%d bytes sent", bytes_sent);
@@ -123,9 +123,9 @@ ssize_t socket_send_string(int client_fd, const char* string) {
 ssize_t socket_receive(int client_fd, void* buffer, size_t len) {
     ssize_t bytes_received;
 
-    if ((bytes_received = recv(client_fd, buffer, len, 0)) == ERROR) { // We are not going to use FLAGS
+    if ((bytes_received = recv(client_fd, buffer, len, 0)) == -1) { // We are not going to use FLAGS
         print_error("error receiving data from the socket: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     print_debug("%d bytes received", bytes_received);
@@ -140,7 +140,7 @@ int socket_set_timeout(int client_fd, unsigned int timeout) {
 
     if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) != 0) {
         print_error("error setting timeout for the socket: %s", strerror(errno));
-        return ERROR;
+        return -1;
     }
 
     return 0;
