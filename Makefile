@@ -1,17 +1,14 @@
-CC := gcc
-FLAGS :=
-BUILD_DIR := out
+BUILD_DIR := cmake-build-debug
 
-SOURCES := $(shell find . -name "*.c" -not -path "./srclib/picohttpparser/bench.c" -not -path "./srclib/picohttpparser/test.c" -not -path "./cmake-build-debug/*")
-TARGETS := $(basename $(SOURCES))
-.SECONDEXPANSION: $(TARGETS)
+.PHONY: server clean run
 
-$(info $(TARGETS))
+server:
+	mkdir -p $(BUILD_DIR)
+	cmake -B./$(BUILD_DIR)
+	make -C $(BUILD_DIR) -j
 
-all: server
+clean:
+	rm -rf $(BUILD_DIR)
 
-server: $(TARGETS)
-	$(CC) $(FLAGS) -o $(BUILD_DIR)/$@ $(BUILD_DIR)/*.o -lpthread -lm -lconfuse
-
-$(TARGETS): $$@.c
-	$(CC) $(FLAGS) -c $@.c -o $(BUILD_DIR)/$(notdir $@).o
+run:
+	cd $(BUILD_DIR) && ./server
