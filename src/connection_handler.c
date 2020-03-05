@@ -33,7 +33,7 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     // Set client_fd socket timeout
     socket_set_timeout(client_fd, 10);
 
-    response_code = process_request(client_fd, &request);
+    response_code = request_process(&request, client_fd);
     if (response_code < 0) {
         if (response_code == BAD_REQUEST) {
             response_code = response_bad_request(client_fd, server_attrs);
