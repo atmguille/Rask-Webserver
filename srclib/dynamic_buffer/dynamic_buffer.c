@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "dynamic_buffer.h"
 #include "../logging/logging.h"
@@ -77,10 +78,27 @@ size_t dynamic_buffer_append_string(DynamicBuffer *db, const char *string) {
     return dynamic_buffer_append(db, (const void *) string, strlen(string));
 }
 
+size_t dynamic_buffer_append_number(DynamicBuffer *db, size_t n) {
+    size_t bytes_read;
+
+    if (db == NULL) {
+        print_warning("NULL passed to dynamic_buffer_append_number");
+        return 0;
+    }
+
+    _grow_buffer(db, 20); // 18446744073709551615UL is the maximum 64 bit unsigned number
+
+    bytes_read = snprintf(&db->buffer[db->size], 20, "%zu", n);
+    db->size += bytes_read;
+
+    return bytes_read;
+}
+
 size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     size_t bytes_read;
+
     if (db == NULL || f == NULL) {
-        print_warning("NULL passed to dynamic_buffer_append");
+        print_warning("NULL passed to dynamic_buffer_append_file");
         return 0;
     }
 
@@ -93,6 +111,55 @@ size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     bytes_read = fread(&db->buffer[db->size], sizeof(char), size, f);
     db->size += bytes_read;
     return bytes_read;
+}
+
+size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd) {
+    size_t bytes_read;
+    size_t total_bytes_read = 0;
+
+
+    do {
+        bytes_read = read(fd, &db->buffer[db->size], db->capacity - db->size);
+        print_debug("Read %zu bytes from fd", bytes_read);
+        total_bytes_read += bytes_read;
+        db->size += bytes_read;
+
+        if (db->size == db->capacity) {
+            _grow_buffer(db, DEFAULT_FD_BUFFER);
+        }
+    } while (bytes_read > 0); // Read until EOF is reached
+
+    return total_bytes_read;
+}
+
+size_t dynamic_buffer_append_file_chunked(DynamicBuffer *db, FILE *f) {
+    size_t bytes_read;
+    size_t available_space;
+
+    if (db == NULL || f == NULL) {
+        print_warning("NULL passed to dynamic_buffer_append_file_chunked");
+        return 0;
+    }
+
+    available_space = db->capacity - db->size;
+    bytes_read = fread(&db->buffer[db->size], sizeof(char), available_space, f);
+    db->size += bytes_read;
+
+    return bytes_read;
+}
+
+bool dynamic_buffer_is_empty(DynamicBuffer *db) {
+    return db != NULL && db->size == 0;
+}
+
+bool dynamic_buffer_is_full(DynamicBuffer *db) {
+    return db != NULL && db->size == db->capacity;
+}
+
+void dynamic_buffer_clear(DynamicBuffer *db) {
+    if (db != NULL) {
+        db->size = 0;
+    }
 }
 
 const void *dynamic_buffer_get_buffer(DynamicBuffer *db) {

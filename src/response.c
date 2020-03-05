@@ -1,4 +1,5 @@
 #include "../includes/response.h"
+#include "../includes/utils.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include "../srclib/logging/logging.h"
@@ -6,6 +7,7 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
 
@@ -33,7 +35,7 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
     struct tm tm = *gmtime(&now);
     if (strftime(current_date, sizeof(current_date), "%a, %d %b %Y %H:%M:%S %Z", &tm) == 0) {
         print_error("failed to get current date");
-        return -1;
+        return ERROR;
     }
 
     sprintf(response_line, "HTTP/1.1 %d %s\r\n", status_code, message);
@@ -46,10 +48,10 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
         dynamic_buffer_append_string(db, "\r\n") == 0) {
 
         print_error("failed to add common headers because of dynamic buffer");
-        return -1;
+        return ERROR;
     }
 
-    return 0;
+    return OK;
 
 }
 
@@ -62,7 +64,6 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
  * @return
  */
 int _response_error(int client_fd, struct config *server_attrs, int status_code, char *message) {
-    char content_length[GENERAL_SIZE];
     char body[GENERAL_SIZE];
     ssize_t ret;
 
@@ -74,20 +75,23 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
 
     if (_add_common_headers(db, server_attrs,status_code, message) != 0) {
         dynamic_buffer_destroy(db);
-        return -1;
+        return ERROR;
     }
 
-    sprintf(content_length, "%lu", ERROR_BODY_LEN + strlen(message));
     sprintf(body, "<!DOCTYPE html><h1>%s</h1>\r\n", message);
 
     if (dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\n"
                                      "Content-Length: ") == 0 ||
-        dynamic_buffer_append_string(db, content_length) == 0 ||
+        dynamic_buffer_append_number(db, (ERROR_BODY_LEN + strlen(message))) == 0 ||
         dynamic_buffer_append_string(db, "\r\nConnection: close\r\n\r\n") == 0 || // TODO: cerramos conexion seguro???
         dynamic_buffer_append_string(db, body) == 0) {
 
         print_error("failed to response error because of dynamic buffer");
-        return -1;
+        return ERROR;
+    }
+
+    if (socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db)) < 0) {
+        return ERROR;
     }
 
     ret = socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
@@ -131,6 +135,10 @@ char *_get_filename(struct string path, struct config *server_attrs) {
 
     base_path_length = strlen(server_attrs->base_path);
     filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1);
+    if (filename == NULL) {
+        print_error("failed to allocate memory for filename");
+        return NULL;
+    }
 
     strncpy(filename, server_attrs->base_path, base_path_length);
     strncpy(&filename[base_path_length], path.data, path.size);
@@ -158,8 +166,13 @@ const char *_find_extension(const char *filename) {
     return extension;
 }
 
-char *_get_content_type(const char *filename) {
-    const char *extension = _find_extension(filename);
+/**
+ * Returns content type from the specified extension
+ * @param extension
+ * @return content type
+ * There's no memory allocation
+ */
+char *_get_content_type(const char *extension) {
 
     MATCH(".txt", "text/plain")
     MATCH(".html", "text/html")
@@ -208,94 +221,106 @@ long _get_file_last_modified(char *filename) {
     }
 }
 
-int _response_cgi(int client_fd, struct config *server_attrs, struct request *request, const char *args, int len_args) {
-    char *filename;
-    char *output;
-    const char *extension;
-    int output_len;
-    char c_output_len[5];
-    DynamicBuffer *db;
+/**
+ * Builds and sends cgi response, executing the desired script
+ * @param client_fd
+ * @param server_attrs
+ * @param args
+ * @param len_args
+ * @param filename
+ * @param extension
+ * @return status
+ */
+int _response_cgi(int client_fd, struct config *server_attrs, char *args, int len_args, char *filename, const char *extension) {
+    DynamicBuffer *script_output;
+    DynamicBuffer *response;
 
     filename = _get_filename(request->path, server_attrs);
     extension = _find_extension(filename);
+    // Check if filename exists
+    if (access(filename, F_OK) == -1) {
+        response_not_found(client_fd, server_attrs);
+        return NOT_FOUND;
+    }
+
     if (strcmp(extension, ".py") == 0) {
-        output = execute_python_script(filename, args, len_args);
+        script_output = execute_python_script(filename, args, len_args);
     } else if (strcmp(extension, ".php") == 0) {
-        output = execute_php_script(filename, args, len_args);
+        script_output = execute_php_script(filename, args, len_args);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
-        free(filename);
         return BAD_REQUEST;
     }
 
-    if (output == NULL) {
+    if (script_output == NULL) {
         response_internal_server_error(client_fd, server_attrs);
-        free(filename);
         return ERROR;
     }
 
-    // TODO: esta solución es muy sucia... dependemos de que los uĺtimos dos bytes sean \r\n (especificado el moodle), y que no haya un \r por ahí perdido...hay que estudiarlo bien
-    for (output_len = 0; output[output_len] != '\r'; output_len++);
-    if (output[++output_len] != '\n') {
-        response_internal_server_error(client_fd, server_attrs);
-        print_error("failed to compute script output length");
-        free(filename);
-        free(output);
-        return ERROR;
-    }
-
-    sprintf(c_output_len, "%d", ++output_len);
-
-    db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
-    if (db == NULL) {
+    response = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
+    if (response == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
         response_internal_server_error(client_fd, server_attrs);
-        free(filename);
-        free(output);
+        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
-    if (_add_common_headers(db, server_attrs, 200, "OK") != 0) {
+    if (_add_common_headers(response, server_attrs, 200, "OK") != 0) {
         response_internal_server_error(client_fd, server_attrs);
+        dynamic_buffer_destroy(response);
+        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
-    if (dynamic_buffer_append_string(db, "Content-Type: text/plain; charset=UTF-8\r\n"
+    if (dynamic_buffer_append_string(response, "Content-Type: text/plain; charset=UTF-8\r\n"
                                          "Content-Length: ") == 0 ||
-        dynamic_buffer_append_string(db, c_output_len) == 0 ||
-        dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
-        dynamic_buffer_append_string(db, output) == 0) {
+        dynamic_buffer_append_number(response, dynamic_buffer_get_size(script_output)) == 0 ||
+        dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
+        dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output)) == 0) {
 
+        response_internal_server_error(client_fd, server_attrs);
+        dynamic_buffer_destroy(response);
+        dynamic_buffer_destroy(script_output);
         print_error("failed to response CGI because of dynamic buffer");
         return ERROR;
     }
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    if (socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response)) < 0) {
+        dynamic_buffer_destroy(response);
+        dynamic_buffer_destroy(script_output);
+        return ERROR;
+    }
 
-    dynamic_buffer_destroy(db);
-    free(filename);
-    free(output);
+    dynamic_buffer_destroy(response);
+    dynamic_buffer_destroy(script_output);
     return OK;
 }
 
+
 int response_get(int client_fd, struct config *server_attrs, struct request *request) {
     char *filename;
+    const char *extension;
     char *content_type;
     size_t file_size;
-    char c_file_size[20]; // The maximum value of an unsigned long long is 18446744073709551615
+    size_t bytes_read;
     long last_modified;
     char c_last_modified[GENERAL_SIZE];
     FILE* f;
     DynamicBuffer *db;
-    int i;
 
-    // Look for ? to detect CGI
-    for (i = 0; i < request->path.size; i++) { // TODO: comprobar también Content-Type o pa que?
-        if (request->path.data[i] == '?') {
-            int args_len = (int)request->path.size - i - 1;
-            request->path.size = i; // Update length so path ends just before ? TODO: guarrería u obra de arte?
-            return _response_cgi(client_fd, server_attrs, request, &request->path.data[i + 1], args_len);
-        }
+
+    filename = _get_filename(request->path, server_attrs);
+    if (filename == NULL) {
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+    extension = _find_extension(filename);
+
+    // Check if extension is cgi type
+    if (strcmp(extension, ".py") == 0 || strcmp(extension, ".php") == 0) {
+        int cgi_ret = _response_cgi(client_fd, server_attrs, request->url_args, request->url_args_len, filename, extension);
+        free(filename);
+        return cgi_ret;
     }
 
     db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
@@ -307,13 +332,15 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
 
     filename = _get_filename(request->path, server_attrs);
     print_info("%s requested (type %s)", filename, _get_content_type(filename));
-    content_type = _get_content_type(filename);
+    content_type = _get_content_type(extension);
     if (content_type == NULL) {
         print_error("unrecognized content type for %s", filename);
         response_not_found(client_fd, server_attrs);
         free(filename);
         return ERROR;
     }
+
+    print_debug("%s requested (type %s)", filename, content_type);
     f = fopen(filename, "r");
     if (f == NULL) {
         print_error("can't open %s: %s", filename, strerror(errno));
@@ -322,28 +349,34 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
     file_size = _get_file_size(filename);
-    sprintf(c_file_size, "%zu", file_size);
 
     last_modified = _get_file_last_modified(filename);
-    if (strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified))) == 0) {
-        print_error("failed to get last modified date");
-        response_internal_server_error(client_fd, server_attrs);
-        return ERROR;
-    }
+    strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified)));
 
     _add_common_headers(db, server_attrs, 200, "OK");
     dynamic_buffer_append_string(db, "Content-Type: ");
-    dynamic_buffer_append_string(db, _get_content_type(filename));
+    dynamic_buffer_append_string(db, content_type);
     dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
     dynamic_buffer_append_string(db, "Content-Length: ");
-    dynamic_buffer_append_string(db, c_file_size);
+    dynamic_buffer_append_number(db, file_size);
     dynamic_buffer_append_string(db, "\r\n");
     dynamic_buffer_append_string(db, c_last_modified);
     dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
-    dynamic_buffer_append_file(db, f, file_size);
+
+    // Add the file chunked
+    while (file_size > 0) {
+        bytes_read = dynamic_buffer_append_file_chunked(db, f);
+        file_size -= bytes_read;
+        if (dynamic_buffer_is_full(db)) {
+            socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+            dynamic_buffer_clear(db);
+        }
+    }
     fclose(f);
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    if (!dynamic_buffer_is_empty(db)) {
+        socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    }
 
     dynamic_buffer_destroy(db);
     free(filename);
@@ -369,19 +402,18 @@ int response_options(int client_fd, struct config *server_attrs) {
 }
 
 int response_post(int client_fd, struct config *server_attrs, struct request *request) {
-    struct phr_header *last_header;
-    const char *body;
-    int body_len;
+    char *filename;
+    const char *extension;
+    int cgi_ret;
 
-    // TODO: comprobar header Content-Type: application/x-www-form-urlencoded para el formato o podemos suponer que siempre van con ese formato o como...?
+    if ((filename = _get_filename(request->path, server_attrs)) == NULL) {
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+    extension = _find_extension(filename);
 
-    // Find the body from the last header
-    last_header = &request->headers[request->num_headers - 1];
-    // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
-    body = &last_header->value[last_header->value_len] + 4;
-    body_len = (int) (request->len_buffer - (body - request->buffer));
-
-    return _response_cgi(client_fd, server_attrs, request, body, body_len);
-
+    cgi_ret = _response_cgi(client_fd, server_attrs, request->body, request->body_len, filename, extension);
+    free(filename);
+    return cgi_ret;
 }
 

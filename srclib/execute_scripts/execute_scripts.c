@@ -1,5 +1,6 @@
 #include "execute_scripts.h"
 #include "../logging/logging.h"
+#include "../dynamic_buffer/dynamic_buffer.h"
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -10,7 +11,6 @@
 
 // Enum to read and write in pipes
 enum { READ = 0, WRITE = 1 };
-#define MAX_SIZE 256
 
 /**
  * Executes script with the specified interpreter
@@ -18,19 +18,12 @@ enum { READ = 0, WRITE = 1 };
  * @param path
  * @param stdin_args
  * @param len_stdin_args
- * @return string that must be freed with the script output
+ * @return dynamic buffer with the output of the script
  */
-char *_execute_script(char *interpreter, char *path, const char *stdin_args, int len_stdin_args) {
+DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_args, int len_stdin_args) {
     int stdin_pipe[2];
     int stdout_pipe[2];
     pid_t pid;
-    char *output;
-
-    output = (char *)calloc(MAX_SIZE, sizeof(char));
-    if (output == NULL) {
-        print_error("failed to allocate memory for return string");
-        return NULL;
-    }
 
     if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
         print_error("failed to create pipe: %s", strerror(errno));
@@ -54,15 +47,24 @@ char *_execute_script(char *interpreter, char *path, const char *stdin_args, int
         execlp(interpreter, interpreter, path, NULL);
 
         print_error("excelp failed");
-        exit(1);
+        exit(EXIT_FAILURE);
 
     } else if (pid > 0) { // Father
+        DynamicBuffer *db = dynamic_buffer_ini(DEFAULT_FD_BUFFER);
+        if (db == NULL) {
+            kill(pid, SIGKILL);
+            wait(NULL);
+            return NULL;
+        }
+
         // Close unused pipe ends
         close(stdin_pipe[READ]);
         close(stdout_pipe[WRITE]);
 
         if (write(stdin_pipe[WRITE], stdin_args, len_stdin_args) == -1) {
             print_error("failed to write stdin_args to child: %s", strerror(errno));
+            close(stdout_pipe[READ]);
+            close(stdin_pipe[WRITE]);
             kill(pid, SIGKILL);
             wait(NULL);
             return NULL;
@@ -71,15 +73,11 @@ char *_execute_script(char *interpreter, char *path, const char *stdin_args, int
         // Write end must be closed so EOF is sent to child
         close(stdin_pipe[WRITE]);
 
-        if (read(stdout_pipe[READ], output, MAX_SIZE) == -1) {
-            print_error("failed to read return string from child: %s", strerror(errno));
-            kill(pid, SIGKILL);
-            wait(NULL);
-            return NULL;
-        }
+        dynamic_buffer_append_fd(db, stdout_pipe[READ]);
+
         close(stdout_pipe[READ]);
         wait(NULL);
-        return output;
+        return db;
 
     } else {
         print_error("failed to create child to execute script");
@@ -88,10 +86,10 @@ char *_execute_script(char *interpreter, char *path, const char *stdin_args, int
 
 }
 
-char *execute_python_script(char *path, const char *stdin_args, int len_stdin_args) {
+DynamicBuffer *execute_python_script(char *path, const char *stdin_args, int len_stdin_args) {
     return _execute_script("python3", path, stdin_args, len_stdin_args);
 }
 
-char *execute_php_script(char *path, const char *stdin_args, int len_stdin_args) {
+DynamicBuffer *execute_php_script(char *path, const char *stdin_args, int len_stdin_args) {
     return _execute_script("php", path, stdin_args, len_stdin_args);
 }

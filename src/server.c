@@ -32,8 +32,6 @@ int main() {
     sigset_t signal_prev;
     struct sigaction act;
 
-    printf("MYPID: %d\n", getpid());
-
     server_attrs = config_load("../files/server.conf");
     if (server_attrs == NULL) {
         return 1;
@@ -70,6 +68,8 @@ int main() {
 
     // Assign signal handlers
     act.sa_flags = 0;
+    sigemptyset(&signal_prev);
+    act.sa_mask = signal_prev; // So as to avoid valgrind warning
     act.sa_handler = SIGINT_handler;
     if (sigaction(SIGINT, &act, NULL) < 0) {
         print_error("failed to create SIGINT handler");
