@@ -64,6 +64,7 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
 int _response_error(int client_fd, struct config *server_attrs, int status_code, char *message) {
     char content_length[GENERAL_SIZE];
     char body[GENERAL_SIZE];
+    ssize_t ret;
 
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
@@ -89,7 +90,9 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
         return -1;
     }
 
-    return socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    ret = socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    dynamic_buffer_destroy(db);
+    return ret;
 }
 
 int response_bad_request(int client_fd, struct config *server_attrs) {
