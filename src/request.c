@@ -22,19 +22,16 @@ bool _is_request_valid(struct request *request) { // TODO: habrá que hacer más
  * @param request
  */
 void _parse_url_args(struct request *request) {
-    int i;
-
-    for (i = 0; i < request->path_len; i++) {
-        if (request->path[i] == '?') {
-            request->url_args = &request->path[i+1];
-            request->url_args_len = request->path_len - (i+1);
-            request->path_len = i; // Update length so path ends just before ?
-            return;
+    for (int i = 0; i < request->path.size; i++) {
+        if (request->path.data[i] == '?') {
+            request->url_args.data = &request->path.data[i + 1];
+            request->url_args.size = request->path.size - i - 1;
+            request->path.size = i;  // Update length so path ends just before ?
         }
     }
     // If there are no url_args
-    request->url_args = NULL;
-    request->url_args_len = 0;
+    request->url_args.data = NULL;
+    request->url_args.size = 0;
 }
 
 /**
@@ -47,11 +44,11 @@ void _parse_body(struct request *request) {
     // Find the body from the last header
     last_header = &request->headers[request->num_headers - 1];
     // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
-    request->body = (char *)&last_header->value[last_header->value_len] + 4;
-    request->body_len = request->len_buffer - (request->body - request->buffer);
+    request->body.data = (char *)&last_header->value[last_header->value_len] + 4;
+    request->body.size = request->len_buffer - (request->body.data - request->buffer);
 }
 
-int process_request(int client_fd, struct request *request) {
+int request_process(struct request *request, int client_fd) {
     ssize_t ret;
     char *method;
     size_t method_len;
@@ -102,14 +99,13 @@ int process_request(int client_fd, struct request *request) {
         }
     }
 
-    _parse_url_args(request);
-    _parse_body(request);
-
     if (_is_request_valid(request)) {
         request->method.data = method;
         request->method.size = method_len;
         request->path.data = path;
         request->path.size = path_len;
+        _parse_url_args(request);
+        _parse_body(request);
         return OK;
     } else {
         return BAD_REQUEST;
@@ -117,3 +113,18 @@ int process_request(int client_fd, struct request *request) {
 
 }
 
+
+void request_get_header(struct request *request, struct string *header, const char *header_name) {
+    for (int i = 0; i < request->num_headers; i++) {
+        struct string current_header_name = {request->headers[i].name, request->headers[i].name_len};
+
+        if (string_is_equal_to(current_header_name, header_name)) {
+            header->data = request->headers[i].value;
+            header->size = request->headers[i].value_len;
+            return;
+        }
+    }
+
+    header->data = NULL;
+    header->size = 0;
+}

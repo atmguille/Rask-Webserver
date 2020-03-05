@@ -20,7 +20,7 @@ enum { READ = 0, WRITE = 1 };
  * @param len_stdin_args
  * @return dynamic buffer with the output of the script
  */
-DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_args, int len_stdin_args) {
+DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdin_args) {
     int stdin_pipe[2];
     int stdout_pipe[2];
     pid_t pid;
@@ -61,7 +61,7 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
         close(stdin_pipe[READ]);
         close(stdout_pipe[WRITE]);
 
-        if (write(stdin_pipe[WRITE], stdin_args, len_stdin_args) == -1) {
+        if (write(stdin_pipe[WRITE], stdin_args.data, stdin_args.size) == -1) {
             print_error("failed to write stdin_args to child: %s", strerror(errno));
             close(stdout_pipe[READ]);
             close(stdin_pipe[WRITE]);
@@ -86,10 +86,10 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
 
 }
 
-DynamicBuffer *execute_python_script(char *path, const char *stdin_args, int len_stdin_args) {
-    return _execute_script("python3", path, stdin_args, len_stdin_args);
+DynamicBuffer *execute_python_script(char *path, struct string stdin_args) {
+    return _execute_script("python3", path, stdin_args);
 }
 
-DynamicBuffer *execute_php_script(char *path, const char *stdin_args, int len_stdin_args) {
-    return _execute_script("php", path, stdin_args, len_stdin_args);
+DynamicBuffer *execute_php_script(char *path, struct string stdin_args) {
+    return _execute_script("php", path, stdin_args);
 }
