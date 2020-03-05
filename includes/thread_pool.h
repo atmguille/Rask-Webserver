@@ -3,7 +3,7 @@
 
 #include "config_parser.h"
 
-#define INITIAL_THREADS   6
+#define INITIAL_THREADS   20
 #define WATCHER_FREQUENCY 50    // The watcher will run every WATCHER_FREQUENCY milliseconds
 #define BUFFER_LEN        4096
 

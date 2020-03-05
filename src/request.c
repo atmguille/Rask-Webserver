@@ -1,23 +1,11 @@
 #include <stdio.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include "../includes/request.h"
 #include "../srclib/logging/logging.h"
 
-struct request *request_ini() {
-    struct request *request;
-    request = (struct request *)malloc(sizeof(struct request));
-    if (request == NULL) {
-        print_error("failed to allocate memory for request struct");
-        return NULL;
-    }
-    request->len_buffer = 0;
-    request->num_headers = MAX_HEADERS;
-    return request;
-}
 
 /**
  * Checks if a request is valid (method supported, ...)
@@ -30,6 +18,13 @@ bool _is_request_valid(struct request *request) { // TODO: habrá que hacer más
 
 int process_request(int client_fd, struct request *request) {
     ssize_t ret;
+    char *method;
+    size_t method_len;
+    char *path;
+    size_t path_len;
+
+    request->len_buffer = 0;
+    request->num_headers = MAX_HEADERS;
 
     while (true) {
         // Keep on reading if the read function was interrupted by a signal
@@ -53,10 +48,10 @@ int process_request(int client_fd, struct request *request) {
         ret = phr_parse_request(
                 request->buffer,
                 request->len_buffer,
-                (const char **) &request->method,
-                &request->method_len,
-                (const char **) &request->path,
-                &request->path_len,
+                (const char **) &method,
+                &method_len,
+                (const char **) &path,
+                &path_len,
                 &request->minor_version,
                 request->headers,
                 &request->num_headers,
@@ -73,6 +68,10 @@ int process_request(int client_fd, struct request *request) {
     }
 
     if (_is_request_valid(request)) {
+        request->method.data = method;
+        request->method.size = method_len;
+        request->path.data = path;
+        request->path.size = path_len;
         return OK;
     } else {
         return BAD_REQUEST;

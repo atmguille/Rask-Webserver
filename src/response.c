@@ -114,25 +114,24 @@ int response_internal_server_error(int client_fd, struct config *server_attrs) {
 
 /**
  * Gets filename from the path (if the path is "/", it will use the default one)
- * @param path non-null-terminated path
- * @param length of path
+ * @param string with the path
  * @return a null-terminated filename that must be freed
  */
-char *_get_filename(const char *path, size_t length, struct config *server_attrs) {
+char *_get_filename(struct string path, struct config *server_attrs) {
     size_t base_path_length;
     char *filename;
 
-    if (length == 1 && *path == '/') {
-        path = server_attrs->default_path;
-        length = strlen(server_attrs->default_path);
+    if (string_is_equal_to(path, "/")) {
+        path.data = server_attrs->default_path;
+        path.size = strlen(server_attrs->default_path);
     }
 
     base_path_length = strlen(server_attrs->base_path);
-    filename = (char *)malloc(base_path_length + length * sizeof(char) + 1);
+    filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1);
 
     strncpy(filename, server_attrs->base_path, base_path_length);
-    strncpy(&filename[base_path_length], path, length);
-    filename[length + base_path_length] = '\0';
+    strncpy(&filename[base_path_length], path.data, path.size);
+    filename[path.size + base_path_length] = '\0';
 
     return filename;
 }
@@ -214,7 +213,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct request *re
     char c_output_len[5];
     DynamicBuffer *db;
 
-    filename = _get_filename(request->path, request->path_len, server_attrs);
+    filename = _get_filename(request->path, server_attrs);
     extension = _find_extension(filename);
     if (strcmp(extension, ".py") == 0) {
         output = execute_python_script(filename, args, len_args);
@@ -288,11 +287,11 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     int i;
 
     // Look for ? to detect CGI
-    for (i = 0; i < request->path_len; i++) { // TODO: comprobar también Content-Type o pa que?
-        if (request->path[i] == '?') {
-            int len_args = (int)request->path_len - (i+1);
-            request->path_len = i; // Update length so path ends just before ? TODO: guarrería u obra de arte?
-            return _response_cgi(client_fd, server_attrs, request, &request->path[i+1], len_args);
+    for (i = 0; i < request->path.size; i++) { // TODO: comprobar también Content-Type o pa que?
+        if (request->path.data[i] == '?') {
+            int args_len = (int)request->path.size - i - 1;
+            request->path.size = i; // Update length so path ends just before ? TODO: guarrería u obra de arte?
+            return _response_cgi(client_fd, server_attrs, request, &request->path.data[i + 1], args_len);
         }
     }
 
@@ -303,7 +302,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
 
-    filename = _get_filename(request->path, request->path_len, server_attrs);
+    filename = _get_filename(request->path, server_attrs);
     print_info("%s requested (type %s)", filename, _get_content_type(filename));
     content_type = _get_content_type(filename);
     if (content_type == NULL) {
