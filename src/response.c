@@ -225,17 +225,14 @@ long _get_file_last_modified(char *filename) {
  * Builds and sends cgi response, executing the desired script
  * @param client_fd
  * @param server_attrs
- * @param args
- * @param len_args
  * @param filename
  * @param extension
  * @return status
  */
-int _response_cgi(int client_fd, struct config *server_attrs, char *args, int len_args, char *filename, const char *extension) {
+int _response_cgi(int client_fd, struct config *server_attrs, struct string args, char *filename, const char *extension) {
     DynamicBuffer *script_output;
     DynamicBuffer *response;
 
-    filename = _get_filename(request->path, server_attrs);
     extension = _find_extension(filename);
     // Check if filename exists
     if (access(filename, F_OK) == -1) {
@@ -244,9 +241,9 @@ int _response_cgi(int client_fd, struct config *server_attrs, char *args, int le
     }
 
     if (strcmp(extension, ".py") == 0) {
-        script_output = execute_python_script(filename, args, len_args);
+        script_output = execute_python_script(filename, args);
     } else if (strcmp(extension, ".php") == 0) {
-        script_output = execute_php_script(filename, args, len_args);
+        script_output = execute_php_script(filename, args);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
         return BAD_REQUEST;
@@ -304,7 +301,8 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     size_t file_size;
     size_t bytes_read;
     long last_modified;
-    char c_last_modified[GENERAL_SIZE];
+    char c_last_modified[GENERAL_SIZE]; // TODO: GENERAL SIZE???
+    char etag[GENERAL_SIZE];
     FILE* f;
     DynamicBuffer *db;
 
@@ -318,7 +316,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
 
     // Check if extension is cgi type
     if (strcmp(extension, ".py") == 0 || strcmp(extension, ".php") == 0) {
-        int cgi_ret = _response_cgi(client_fd, server_attrs, request->url_args, request->url_args_len, filename, extension);
+        int cgi_ret = _response_cgi(client_fd, server_attrs, request->url_args, filename, extension);
         free(filename);
         return cgi_ret;
     }
@@ -330,8 +328,6 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
 
-    filename = _get_filename(request->path, server_attrs);
-    print_info("%s requested (type %s)", filename, _get_content_type(filename));
     content_type = _get_content_type(extension);
     if (content_type == NULL) {
         print_error("unrecognized content type for %s", filename);
@@ -353,26 +349,43 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     last_modified = _get_file_last_modified(filename);
     strftime(c_last_modified, sizeof(c_last_modified), "Last modified: %a, %d %b %Y %H:%M:%S %Z\r\n", gmtime(&(last_modified)));
 
-    _add_common_headers(db, server_attrs, 200, "OK");
-    dynamic_buffer_append_string(db, "Content-Type: ");
-    dynamic_buffer_append_string(db, content_type);
-    dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
-    dynamic_buffer_append_string(db, "Content-Length: ");
-    dynamic_buffer_append_number(db, file_size);
-    dynamic_buffer_append_string(db, "\r\n");
-    dynamic_buffer_append_string(db, c_last_modified);
-    dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
+    struct string header;
+    request_get_header(request, &header, "If-None-Match");
+    //print_info("%.*s", header.size, header.data);
 
-    // Add the file chunked
-    while (file_size > 0) {
-        bytes_read = dynamic_buffer_append_file_chunked(db, f);
-        file_size -= bytes_read;
-        if (dynamic_buffer_is_full(db)) {
-            socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
-            dynamic_buffer_clear(db);
+    snprintf(etag, GENERAL_SIZE, "%ld%.*s", last_modified, request->path.size, request->path.data);
+    //print_info("ETAG: %s", etag);
+
+    if (string_is_equal_to(header, etag)) {
+        fclose(f);
+        _add_common_headers(db, server_attrs, 304, "Not Modified");
+        dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n");
+    } else {
+        _add_common_headers(db, server_attrs, 200, "OK");
+        dynamic_buffer_append_string(db, "Content-Type: ");
+        dynamic_buffer_append_string(db, content_type);
+        dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
+        dynamic_buffer_append_string(db, "ETag: ");
+        dynamic_buffer_append_string(db, etag);
+        dynamic_buffer_append_string(db, "\r\nContent-Length: ");
+        dynamic_buffer_append_number(db, file_size);
+        dynamic_buffer_append_string(db, "\r\n");
+        dynamic_buffer_append_string(db, c_last_modified);
+        dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
+
+        // Add the file chunked
+        while (file_size > 0) {
+            bytes_read = dynamic_buffer_append_file_chunked(db, f);
+            file_size -= bytes_read;
+            if (dynamic_buffer_is_full(db)) {
+                socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+                dynamic_buffer_clear(db);
+            }
         }
+        fclose(f);
     }
-    fclose(f);
+
+
 
     if (!dynamic_buffer_is_empty(db)) {
         socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
@@ -412,7 +425,7 @@ int response_post(int client_fd, struct config *server_attrs, struct request *re
     }
     extension = _find_extension(filename);
 
-    cgi_ret = _response_cgi(client_fd, server_attrs, request->body, request->body_len, filename, extension);
+    cgi_ret = _response_cgi(client_fd, server_attrs, request->body, filename, extension);
     free(filename);
     return cgi_ret;
 }
