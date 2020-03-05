@@ -134,7 +134,7 @@ char *_get_filename(struct string path, struct config *server_attrs) {
     }
 
     base_path_length = strlen(server_attrs->base_path);
-    filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1);
+    filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1); // TODO: malloc or not malloc, that is the question
     if (filename == NULL) {
         print_error("failed to allocate memory for filename");
         return NULL;
@@ -362,7 +362,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n");
     } else {
         _add_common_headers(db, server_attrs, 200, "OK");
-        dynamic_buffer_append_string(db, "Content-Type: ");
+        dynamic_buffer_append_string(db, "Content-Type: "); // TODO: vamos a controlar el dynamic buffer o no? En unos sitios lo hacemos, en otro no...
         dynamic_buffer_append_string(db, content_type);
         dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
         dynamic_buffer_append_string(db, "ETag: ");
@@ -419,7 +419,8 @@ int response_post(int client_fd, struct config *server_attrs, struct request *re
     const char *extension;
     int cgi_ret;
 
-    if ((filename = _get_filename(request->path, server_attrs)) == NULL) {
+    filename = _get_filename(request->path, server_attrs);
+    if (filename == NULL) {
         response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
