@@ -56,10 +56,16 @@ el rendimiento final del servidor. Esta decisión puede estructurarse en los sig
     Para ello, como es necesario escribir y leer del proceso que ejecuta el script, necesitamos hacer uso de `pipes` y no podemos usar `popen`, ya que 
     este último solo permite la comunicación en un solo sentido. Valoramos la implementación de un timeout, haciendo uso de la función `select`, pero 
     tras consultar al profesor de teoría nos decantamos por no hacerlo. TODO: razones. No es difícil hacerlo como extra si queremos.
+    
     2. **socket**: agrupa las funciones relacionadas con la gestión de los sockets. Cabe comentar la funcionalidad extra que maneja la función
     `socket_set_timeout`, fijando un timeout para un socket concreto. Esto es usado en el servidor para establecer un límite de tiempo en el que nos bloqueamos
     en el read esperando la petición del cliente.
     TODO: comentar decisión final de qué librerías se hacen. TODO: logging, dynamic_buffer, string...
+
+- En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar
+      en formato url-encode, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Se considera además que se solicita la ejecución de un script a través de `GET`
+      cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que 
+      siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Bad Request TODO: este código hay que revisar si es el idóneo)
 
 ## Organización y estructura de módulos
 
@@ -79,3 +85,7 @@ diversas macros con códigos de estado de peticiones o respuestas, necesarios en
 
 - Algunos tests desarrollados se encuentran en la carpeta tests, donde `client.py` que se ha implementado para realizar diversas pruebas de estrés a nuestro servidor
 y `post.py` contiene una petición post con datos en el body.
+
+## Conclusiones
+
+TODO
