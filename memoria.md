@@ -51,8 +51,15 @@ el rendimiento final del servidor. Esta decisión puede estructurarse en los sig
    
 - Demonio: TODO: comentar decisión final.
 
-- Librerías: 
-TODO: comentar decisión final de qué librerías se hacen. TODO: logging, dynamic_buffer, string...
+- Librerías: en srclib se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
+    1. **execute_scripts**: este fichero contiene el código encargado de ejecutar scripts en un proceso aparte, pasándole los argumentos por entrada estándar (stdin).
+    Para ello, como es necesario escribir y leer del proceso que ejecuta el script, necesitamos hacer uso de `pipes` y no podemos usar `popen`, ya que 
+    este último solo permite la comunicación en un solo sentido. Valoramos la implementación de un timeout, haciendo uso de la función `select`, pero 
+    tras consultar al profesor de teoría nos decantamos por no hacerlo. TODO: razones. No es difícil hacerlo como extra si queremos.
+    2. **socket**: agrupa las funciones relacionadas con la gestión de los sockets. Cabe comentar la funcionalidad extra que maneja la función
+    `socket_set_timeout`, fijando un timeout para un socket concreto. Esto es usado en el servidor para establecer un límite de tiempo en el que nos bloqueamos
+    en el read esperando la petición del cliente.
+    TODO: comentar decisión final de qué librerías se hacen. TODO: logging, dynamic_buffer, string...
 
 ## Organización y estructura de módulos
 
