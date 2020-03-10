@@ -2,7 +2,7 @@
 #define CONFIG_PARSER_H
 
 /**
- * Struct containing server configuration attributes, stored in files/server.conf
+ * Struct containing server configuration attributes
  */
 struct config {
     char *signature;

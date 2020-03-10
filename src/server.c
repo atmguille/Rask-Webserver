@@ -34,7 +34,7 @@ int main() {
 
     //set_logging_limit(LOG_INFO);
 
-    server_attrs = config_load("../files/server.conf");
+    server_attrs = config_load("/etc/rask/rask.conf");
     if (server_attrs == NULL) {
         return 1;
     }
