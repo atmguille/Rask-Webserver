@@ -3,9 +3,9 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include "../includes/request.h"
+#include "../include/request.h"
 #include "../srclib/logging/logging.h"
-#include "../includes/utils.h"
+#include "../include/utils.h"
 
 
 /**

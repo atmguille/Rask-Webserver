@@ -1,8 +1,8 @@
-#include "../includes/thread_pool.h"
+#include "../include/thread_pool.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/logging/logging.h"
-#include "../includes/connection_handler.h"
-#include "../includes/utils.h"
+#include "../include/connection_handler.h"
+#include "../include/utils.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>

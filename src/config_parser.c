@@ -1,4 +1,4 @@
-#include "../includes/config_parser.h"
+#include "../include/config_parser.h"
 #include "../srclib/logging/logging.h"
 #include <stdlib.h>
 #include <confuse.h>

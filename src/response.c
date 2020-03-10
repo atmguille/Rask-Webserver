@@ -1,5 +1,5 @@
-#include "../includes/response.h"
-#include "../includes/utils.h"
+#include "../include/response.h"
+#include "../include/utils.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/dynamic_buffer/dynamic_buffer.h"
 #include "../srclib/logging/logging.h"

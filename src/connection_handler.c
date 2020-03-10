@@ -1,8 +1,8 @@
-#include "../includes/connection_handler.h"
+#include "../include/connection_handler.h"
 #include "../srclib/logging/logging.h"
 #include "../srclib/socket/socket.h"
-#include "../includes/response.h"
-#include "../includes/utils.h"
+#include "../include/response.h"
+#include "../include/utils.h"
 
 enum http_method {
     GET,

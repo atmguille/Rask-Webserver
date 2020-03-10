@@ -1,6 +1,6 @@
 #include "../srclib/socket/socket.h"
-#include "../includes/thread_pool.h"
-#include "../includes/config_parser.h"
+#include "../include/thread_pool.h"
+#include "../include/config_parser.h"
 #include "../srclib/logging/logging.h"
 #include <unistd.h>
 #include <signal.h>
@@ -31,6 +31,8 @@ int main() {
     sigset_t signal_to_block;
     sigset_t signal_prev;
     struct sigaction act;
+
+    //set_logging_limit(LOG_INFO);
 
     server_attrs = config_load("../files/server.conf");
     if (server_attrs == NULL) {

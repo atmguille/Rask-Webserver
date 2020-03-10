@@ -1,8 +1,8 @@
 #ifndef RESPONSE_H
 #define RESPONSE_H
 
-#include "../includes/config_parser.h"
-#include "../includes/request.h"
+#include "../include/config_parser.h"
+#include "../include/request.h"
 
 /**
  * Builds and sends bad request response
