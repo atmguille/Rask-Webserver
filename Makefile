@@ -8,6 +8,7 @@ install: server
 	sudo mkdir -p /etc/$(SERVER_NAME)
 	sudo cp files/$(SERVER_NAME).conf /etc/$(SERVER_NAME)/
 	sudo cp -r www/* /var/www/
+	sudo cp files/$(SERVER_NAME).service /lib/systemd/system/
 
 uninstall:
 	sudo rm -rf /etc/$(SERVER_NAME)
