@@ -4,7 +4,7 @@ SERVER_NAME := rask
 .PHONY: server clean run install uninstall
 
 install: server
-	sudo cp $(BUILD_DIR)/$(SERVER_NAME) /usr/bin/
+	sudo cp $(BUILD_DIR)/$(SERVER_NAME) /usr/local/bin/
 	sudo mkdir -p /etc/$(SERVER_NAME)
 	sudo cp files/$(SERVER_NAME).conf /etc/$(SERVER_NAME)/
 	sudo cp -r www/* /var/www/
@@ -12,7 +12,7 @@ install: server
 
 uninstall:
 	sudo rm -rf /etc/$(SERVER_NAME)
-	sudo rm /usr/bin/$(SERVER_NAME)
+	sudo rm /usr/local/bin/$(SERVER_NAME)
 
 server:
 	mkdir -p $(BUILD_DIR)
