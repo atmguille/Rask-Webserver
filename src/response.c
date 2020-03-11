@@ -313,6 +313,12 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         return ERROR;
     }
     extension = _find_extension(filename);
+    if (extension == NULL) {
+        print_info("don't know what to do with directory %s", filename);
+        response_not_implemented(client_fd, server_attrs);
+        free(filename);
+        return ERROR;
+    }
 
     // Check if extension is cgi type
     if (strcmp(extension, ".py") == 0 || strcmp(extension, ".php") == 0) {
