@@ -6,6 +6,7 @@
 struct config *config_load(char *config_file_name) {
     struct config *server_attrs;
     cfg_t *cfg;
+    int ret;
     /* Although the macro used to specify an integer option is called
      * CFG_SIMPLE_INT(), it actually expects a long int. On a 64 bit system
      * where ints are 32 bit and longs 64 bit (such as the x86-64 or amd64
@@ -34,8 +35,12 @@ struct config *config_load(char *config_file_name) {
     };
 
     cfg = cfg_init(opts, 0);
-    if (cfg_parse(cfg, config_file_name) == CFG_PARSE_ERROR) {
-        print_error("failed to parse config file");
+    if ((ret = cfg_parse(cfg, config_file_name)) != CFG_SUCCESS) {
+        if (ret == CFG_FILE_ERROR) {
+            print_error("failed to read config file");
+        } else if (ret == CFG_PARSE_ERROR) {
+            print_error("failed to parse config file");
+        }
         cfg_free(cfg);
         free(server_attrs);
         return NULL;
