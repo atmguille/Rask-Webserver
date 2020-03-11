@@ -33,6 +33,7 @@ void _parse_url_args(struct request *request) {
             request->url_args.data = &request->path.data[i + 1];
             request->url_args.size = request->path.size - i - 1;
             request->path.size = i;  // Update length so path ends just before ?
+            return;
         }
     }
     // If there are no url_args
