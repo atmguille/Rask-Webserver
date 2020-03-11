@@ -233,6 +233,23 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
     DynamicBuffer *script_output;
     DynamicBuffer *response;
 
+    response = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
+    if (response == NULL) {
+        print_error("failed to allocate memory for dynamic buffer");
+        response_internal_server_error(client_fd, server_attrs);
+        return ERROR;
+    }
+
+    #ifdef __APPLE__
+        _add_common_headers(response, server_attrs, 501, "Not Implemented");
+        dynamic_buffer_append_string(response, "Content-Type: text/html; charset=UTF-8\r\n");
+        dynamic_buffer_append_string(response, "Content-Length: 41\r\n");
+        dynamic_buffer_append_string(response, "Connection: keep-alive\r\n\r\n");
+        dynamic_buffer_append_string(response, "<h1>Scripts not implemented on macOS</h1>");
+        socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response));
+        return OK;
+    #endif
+
     extension = _find_extension(filename);
     // Check if filename exists
     if (access(filename, F_OK) == -1) {
@@ -251,14 +268,6 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
 
     if (script_output == NULL) {
         response_internal_server_error(client_fd, server_attrs);
-        return ERROR;
-    }
-
-    response = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
-    if (response == NULL) {
-        print_error("failed to allocate memory for dynamic buffer");
-        response_internal_server_error(client_fd, server_attrs);
-        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
