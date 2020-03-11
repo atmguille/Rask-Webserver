@@ -13,7 +13,13 @@
  * @param request
  * @return true if valid
  */
-bool _is_request_valid(struct request *request) { // TODO: habrá que hacer más comprobaciones imagino
+bool _is_request_valid(struct request *request) {
+    for (int i = 0; i < request->path.size - 1; i++) {
+        if (request->path.data[i] == '.' && request->path.data[i + 1] == '.') {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -99,11 +105,11 @@ int request_process(struct request *request, int client_fd) {
         }
     }
 
+    request->method.data = method;
+    request->method.size = method_len;
+    request->path.data = path;
+    request->path.size = path_len;
     if (_is_request_valid(request)) {
-        request->method.data = method;
-        request->method.size = method_len;
-        request->path.data = path;
-        request->path.size = path_len;
         _parse_url_args(request);
         _parse_body(request);
         return OK;
