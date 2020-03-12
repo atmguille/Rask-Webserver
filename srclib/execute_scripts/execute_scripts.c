@@ -52,6 +52,7 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
     } else if (pid > 0) { // Father
         DynamicBuffer *db = dynamic_buffer_ini(DEFAULT_FD_BUFFER);
         if (db == NULL) {
+            print_error("failed to allocate memory for dynamic buffer");
             kill(pid, SIGKILL);
             wait(NULL);
             return NULL;
