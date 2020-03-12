@@ -101,7 +101,7 @@ int request_process(struct request *request, int client_fd) {
             print_error("error parsing request");
             return BAD_REQUEST;
         } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
-            print_error("request is too long"); // TODO: handle this case
+            print_error("request is too long");
             return REQUEST_TOO_LONG;
         }
     }
