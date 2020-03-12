@@ -11,6 +11,30 @@ sudo apt install libconfuse-dev
 brew install confuse
 ```
 ### Compilation
-Just run `make` or `make server`
-### Run without installing
-Run `make run` from this folder or `./server` from the build folder (usually cmake-build-debug)
+Run `sudo make install` to compile the server and install it on the system.
+### Using the server
+#### As an ordinary program
+##### How to start the server
+Run `rask` from a terminal. 
+##### How to stop the server
+Stop it using `CTRL + C` to perform soft stop. To stop it immediately you should run 
+```bash
+killall -SIGTERM rask
+```
+#### As a daemon
+##### How to start the daemon
+```bash
+sudo systemctl start rask
+```
+##### How to see the logs
+```bash
+journalctl /usr/local/bin/rask
+```
+##### How to stop the daemon
+```bash
+sudo systemctl stop rask
+```
+##### How to restart the daemon
+```bash
+sudo systemctl restart rask
+```
