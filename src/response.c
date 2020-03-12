@@ -24,35 +24,24 @@
  * @param server_attrs
  * @param status_code
  * @param message
- * @return
  */
-int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int status_code, char *message) {
+void _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int status_code, char *message) {
     char current_date[DATE_SIZE];
     char response_line[GENERAL_SIZE];
 
     // Get current date
     time_t now = time(0);
     struct tm tm = *gmtime(&now);
-    if (strftime(current_date, sizeof(current_date), "%a, %d %b %Y %H:%M:%S %Z", &tm) == 0) {
-        print_error("failed to get current date");
-        return ERROR;
-    }
+    strftime(current_date, sizeof(current_date), "%a, %d %b %Y %H:%M:%S %Z", &tm);
 
     sprintf(response_line, "HTTP/1.1 %d %s\r\n", status_code, message);
 
-    if (dynamic_buffer_append_string(db, response_line) == 0 ||
-        dynamic_buffer_append_string(db, "Date: ") == 0 ||
-        dynamic_buffer_append_string(db, current_date) == 0 ||
-        dynamic_buffer_append_string(db, "\r\nServer: ") == 0 ||
-        dynamic_buffer_append_string(db, server_attrs->signature) == 0 ||
-        dynamic_buffer_append_string(db, "\r\n") == 0) {
-
-        print_error("failed to add common headers because of dynamic buffer");
-        return ERROR;
-    }
-
-    return OK;
-
+    dynamic_buffer_append_string(db, response_line);
+    dynamic_buffer_append_string(db, "Date: ");
+    dynamic_buffer_append_string(db, current_date);
+    dynamic_buffer_append_string(db, "\r\nServer: ");
+    dynamic_buffer_append_string(db, server_attrs->signature);
+    dynamic_buffer_append_string(db, "\r\n");
 }
 
 /**
@@ -65,38 +54,30 @@ int _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int stat
  */
 int _response_error(int client_fd, struct config *server_attrs, int status_code, char *message) {
     char body[GENERAL_SIZE];
-    ssize_t ret;
 
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
-        return -1;
-    }
-
-    if (_add_common_headers(db, server_attrs,status_code, message) != 0) {
-        dynamic_buffer_destroy(db);
         return ERROR;
     }
+
+    _add_common_headers(db, server_attrs,status_code, message);
 
     sprintf(body, "<!DOCTYPE html><h1>%s</h1>\r\n", message);
 
-    if (dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\n"
-                                     "Content-Length: ") == 0 ||
-        dynamic_buffer_append_number(db, (ERROR_BODY_LEN + strlen(message))) == 0 ||
-        dynamic_buffer_append_string(db, "\r\nConnection: close\r\n\r\n") == 0 || // TODO: cerramos conexion seguro???
-        dynamic_buffer_append_string(db, body) == 0) {
-
-        print_error("failed to response error because of dynamic buffer");
-        return ERROR;
-    }
+    dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\nContent-Length: ");
+    dynamic_buffer_append_number(db, (ERROR_BODY_LEN + strlen(message)));
+    dynamic_buffer_append_string(db, "\r\nConnection: close\r\n\r\n");
+    dynamic_buffer_append_string(db, body);
 
     if (socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db)) < 0) {
+        print_error("failed to send");
+        dynamic_buffer_destroy(db);
+        response_internal_server_error(client_fd, server_attrs);
         return ERROR;
     }
 
-    ret = socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
-    dynamic_buffer_destroy(db);
-    return ret;
+    return OK;
 }
 
 int response_bad_request(int client_fd, struct config *server_attrs) {
@@ -134,7 +115,7 @@ char *_get_filename(struct string path, struct config *server_attrs) {
     }
 
     base_path_length = strlen(server_attrs->base_path);
-    filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1); // TODO: malloc or not malloc, that is the question
+    filename = (char *)malloc(base_path_length + path.size * sizeof(char) + 1);
     if (filename == NULL) {
         print_error("failed to allocate memory for filename");
         return NULL;
@@ -250,10 +231,10 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
         return OK;
     #endif
 
-    extension = _find_extension(filename);
-    // Check if filename exists
+    //Check if filename exists
     if (access(filename, F_OK) == -1) {
         response_not_found(client_fd, server_attrs);
+        dynamic_buffer_destroy(response);
         return NOT_FOUND;
     }
 
@@ -263,35 +244,24 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
         script_output = execute_php_script(filename, args);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
+        dynamic_buffer_destroy(response);
         return BAD_REQUEST;
     }
 
     if (script_output == NULL) {
         response_internal_server_error(client_fd, server_attrs);
-        return ERROR;
-    }
-
-    if (_add_common_headers(response, server_attrs, 200, "OK") != 0) {
-        response_internal_server_error(client_fd, server_attrs);
         dynamic_buffer_destroy(response);
-        dynamic_buffer_destroy(script_output);
         return ERROR;
     }
 
-    if (dynamic_buffer_append_string(response, "Content-Type: text/plain; charset=UTF-8\r\n"
-                                         "Content-Length: ") == 0 ||
-        dynamic_buffer_append_number(response, dynamic_buffer_get_size(script_output)) == 0 ||
-        dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n") == 0 ||
-        dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output)) == 0) {
-
-        response_internal_server_error(client_fd, server_attrs);
-        dynamic_buffer_destroy(response);
-        dynamic_buffer_destroy(script_output);
-        print_error("failed to response CGI because of dynamic buffer");
-        return ERROR;
-    }
+    _add_common_headers(response, server_attrs, 200, "OK");
+    dynamic_buffer_append_string(response, "Content-Type: text/plain; charset=UTF-8\r\nContent-Length: ");
+    dynamic_buffer_append_number(response, dynamic_buffer_get_size(script_output));
+    dynamic_buffer_append_string(response, "\r\nConnection: keep-alive\r\n\r\n");
+    dynamic_buffer_append(response, dynamic_buffer_get_buffer(script_output), dynamic_buffer_get_size(script_output));
 
     if (socket_send(client_fd, dynamic_buffer_get_buffer(response), dynamic_buffer_get_size(response)) < 0) {
+        response_internal_server_error(client_fd, server_attrs);
         dynamic_buffer_destroy(response);
         dynamic_buffer_destroy(script_output);
         return ERROR;
@@ -324,7 +294,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     extension = _find_extension(filename);
     if (extension == NULL) {
         print_info("don't know what to do with directory %s", filename);
-        response_not_implemented(client_fd, server_attrs);
+        response_not_implemented(client_fd, server_attrs); // TODO: not implemented or bad_request? en cgi devolvemos bad request y aqui esto
         free(filename);
         return ERROR;
     }
@@ -340,6 +310,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     if (db == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
         response_internal_server_error(client_fd, server_attrs);
+        free(filename);
         return ERROR;
     }
 
@@ -348,6 +319,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         print_error("unrecognized content type for %s", filename);
         response_not_found(client_fd, server_attrs);
         free(filename);
+        dynamic_buffer_destroy(db);
         return ERROR;
     }
 
@@ -357,6 +329,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
         print_error("can't open %s: %s", filename, strerror(errno));
         response_not_found(client_fd, server_attrs);
         free(filename);
+        dynamic_buffer_destroy(db);
         return ERROR;
     }
     file_size = _get_file_size(filename);
@@ -366,18 +339,15 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
 
     struct string header;
     request_get_header(request, &header, "If-None-Match");
-    //print_info("%.*s", header.size, header.data);
 
     snprintf(etag, GENERAL_SIZE, "%ld%.*s", last_modified, (int)request->path.size, request->path.data);
-    //print_info("ETAG: %s", etag);
 
     if (string_is_equal_to(header, etag)) {
-        fclose(f);
         _add_common_headers(db, server_attrs, 304, "Not Modified");
         dynamic_buffer_append_string(db, "\r\nConnection: keep-alive\r\n\r\n");
     } else {
         _add_common_headers(db, server_attrs, 200, "OK");
-        dynamic_buffer_append_string(db, "Content-Type: "); // TODO: vamos a controlar el dynamic buffer o no? En unos sitios lo hacemos, en otro no...
+        dynamic_buffer_append_string(db, "Content-Type: ");
         dynamic_buffer_append_string(db, content_type);
         dynamic_buffer_append_string(db, "; charset=UTF-8\r\n");
         dynamic_buffer_append_string(db, "ETag: ");
@@ -397,10 +367,9 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
                 dynamic_buffer_clear(db);
             }
         }
-        fclose(f);
     }
 
-
+    fclose(f);
 
     if (!dynamic_buffer_is_empty(db)) {
         socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
@@ -424,7 +393,11 @@ int response_options(int client_fd, struct config *server_attrs) {
     dynamic_buffer_append_string(db, "Content-Length: 0\r\n");
     dynamic_buffer_append_string(db, "Connection: keep-alive\r\n\r\n");
 
-    socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db));
+    if (socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db)) < 0) {
+        response_internal_server_error(client_fd, server_attrs);
+        dynamic_buffer_destroy(db);
+        return ERROR;
+    }
 
     return OK;
 }
