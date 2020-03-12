@@ -8,47 +8,29 @@ decisiones de diseño hasta la estructura del código.
 ## Decisiones de diseño
 Son varias las decisiones que se han tenido que tomar a lo largo de todo el desarrollo.
 
-- La primera gran decisión a la que tuvimos que enfrentarnos fue el tipo de servidor a desarrollar.
-Este paso puede considerarse como uno de los más importantes del proyecto, ya que determina, sin lugar a dudas, 
-el rendimiento final del servidor. Esta decisión puede estructurarse en los siguientes pasos:
-    1. **Procesos o hilos**: estaba claro desde el principio que el servidor debía contar con cierto grado de paralelismo,
-    pues los servidores iterativos son totalmente ineficientes en la gestión de peticiones simultáneas y no explotan al
-    máximo los recursos de las máquinas donde se ejecutan. Sin embargo, debíamos decidir si usar una mezcla de procesos e hilos
-    o simplemente usar hilos. La motivación de la primera opción es que en ciertos sistemas, la librería de hilos la controla
-    cada proceso, es decir, el procesador no ve hilos, solo ve procesos, por lo que el tiempo de ejecución se asigna a procesos,
-    y son estos los que distribuyen el tiempo entre sus hilos. Tras consultar diversas fuentes, la librería estándar POSIX de threads
-    hace que el procesador vea a esos hilos y por tanto consten de tiempo de ejecución propio. Como además los hilos son muchos más ligeros
-    y presentan menos overhead que los procesos, decidimos basar la concurrencia en threads. TODO: comentar mejor lo del estándar si hace falta
+### Paralelismo
 
-    2. **Thread por cliente o thread-pool**: el siguiente paso esa determinar qué tipo exacto de servidor íbamos a implementar,
-    una vez que teníamos claro el uso de threads. Las dos alternativas eran crear un thread por cliente o desarrollar un pool de threads.
-    La primera posibilidad tenía algunas ventajas, entre las que destacan la simpleza de implementación y la rapidez inicial de la respuesta.
-    Esto último se refiere a que, nada más llegue una petición desde un cliente, se le asigna un hilo, con el único retardo que genera la creación del thread.
-    Con respecto al pool, la respuesta a una petición puede ser inmediata si tenemos un hilo disponible, o puede retrarse si
-    no es así. Sin embargo, el pool de hilos ofrece un mayor control sobre la ejecución en todo momento, pudiendo gestionar dinámicamente
-    y de una forma mucho más directa el número de hilos disponibles. Además, en varias de las fuentes consultadas se afirmaba que el rendimiento
-    de esta implementación era superior al resto de opciones
+La primera gran decisión a la que tuvimos que enfrentarnos fue el tipo de servidor a desarrollar.
+Este paso puede considerarse como uno de los más importantes del proyecto, ya que determina, sin lugar a dudas, el rendimiento final del servidor. Esta decisión puede estructurarse en los siguientes pasos:
+
+  1. **Procesos o hilos**: estaba claro desde el principio que el servidor debía contar con cierto grado de paralelismo, pues los servidores iterativos son totalmente ineficientes en la gestión de peticiones simultáneas y no explotan al máximo los recursos de las máquinas donde se ejecutan. Sin embargo, debíamos decidir si usar una mezcla de procesos e hilos o simplemente usar hilos. El principal argumento a favor de usar varios procesos es que en algunos sistemas, el *kernel* tan sólo es consciente de la existencia de los procesos y no de los hilos. Esto es lo que se conoce como hilos a nivel de usuario y tienen principalmente dos desventajas. La primera es que cuando un hilo hace una llamada bloqueante al sistema, como un *accept*, por ejemplo, el resto de hilos también se bloquean. La segunda es que una aplicación multihilo no podría aprovechar varios núcleos del procesador. Leyendo el manual de *pthreads* de Linux, vemos que la implementación (es importante recalcar que *pthreads* es una interfaz, y que cada sistema operativo lo implementa de una manera distinta) es 1:1, es decir, cada *thread* corresponde a una *kernel scheduling entity*. Esto es, el sistema operativo es consciente de la existencia de los *threads*. Algo similar ocurre en el caso de macOS, aunque la implementación de *pthreads* es distinta, ya que usa *Mach threads*. Es por esto que decidimos implementar el servidor usando *threads*, pues son ligeros, fáciles de utilizar, y cumplen con la funcionalidad necesaria.
     
-    3. **Pool estático o dinámico**: una vez que nos decantamos por el pool de hilos, nos planteamos si desarrollar un pool estático, en el que
-    se creara desde el inicio el número de hilos máximo, o bien implementar un pool dinámico, que se autogestionase en función del número de hilos en ejecución 
-    en cada momento. Si bien la primera opción es mucho más sencilla y garantiza que cada cliente va a ser atendido inmediatamente, supone un gasto innecesario
-    de recursos. Ilustrémoslo con un ejemplo: si nuestro servidor debe estar preparado para atender a 100 clientes, en el pool estático crearemos 100 hilos
-    inicialmente. Ahora bien, si realmente no vamos a gestionar 100 conexiones continuamente, tenemos una gran parte de hilos que no aportan nada. Si esta gestión
-    la realizamos de manera dinámica, podemos optimizar en gran medida el uso de recursos, creando hilos cuando se detecte que es necesario y matándolos cuando la
-    carga de trabajo se encuentre por debajo de un umbral.
+  2. ***Thread* por cliente o *thread-pool***: el siguiente paso era determinar qué tipo exacto de servidor íbamos a implementar, una vez que teníamos claro el uso de *threads*. Las dos alternativas eran crear un *thread* por cliente o desarrollar un *pool* de threads. La primera posibilidad parecía a priori muy fácil de implementrar (aunque como siempre el diablo está en los detalles). Un pequeño inconveniente que tendría esto sería esperar a la generación de un hilo cada vez que el *accept* retornase. No obstante, el tiempo de generación de un hilo es prácticamente despreciable, del orden de décimas de milisegundo. Como hemos comentado antes, el problema está en los detalles. Por ejemplo, tenemos que almacenar los *pthread_t* de cada hilo que esté corriendo para poder pedirles que paren en el caso de recibir la señal de apagado y para hacer el *pthread_join* después. Para almacenar los *pthread_t*  de manera eficiente, deberíamos saber cuándo un hilo ha terminado para eliminar el *pthread_t* de la lista. En definitiva, a la hora de implementarlo surgirían ciertos problemas, algunos de los cuales comunes a ambas alternativas de diseño.  Es por eso que decidimos usar un *thread-pool*, ya que es lo que se nos recomendó en clase, no tanto por su rapidez, pues los hilos ya están pre-creados, sino por la facilidad de su gestión.
     
-   Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del pool (el `watcher_thread`), que cada cierto tiempo
-   comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande,
-   ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación.
-   
-   Cabe mencionar también que el pool tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato o bien esperar
-   a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un restart o a un stop de un servicio,
-   siendo el restart el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y
-   el stop el modo `hard` (necesitamos que el servicio pare de inmediato).
-   
-   Por otro lado, hemos considerado que si los threads detectan un error operen igual que si se ha cerrado la conexión, evitando acceder a
-   zonas de memoria no inicializadas pero no parando el flujo de ejecución. TODO: completar con razones más fuertes
-   
+  3. ***Pool* estático o dinámico**: una vez que nos decantamos por el *pool* de hilos, nos planteamos si desarrollar un *poo*l estático, en el que se creara desde el inicio el número de hilos máximo, o bien implementar un *pool* dinámico, que se autogestionase en función del número de hilos en ejecución en cada momento. Si bien la primera opción es mucho más sencilla y garantiza que cada cliente va a ser atendido inmediatamente, supone un gasto innecesario de recursos. Ilustrémoslo con un ejemplo: si nuestro servidor debe estar preparado para atender a 100 clientes, en el *pool* estático crearemos 100 hilos inicialmente. Ahora bien, si realmente no vamos a gestionar 100 conexiones continuamente, tenemos una gran parte de hilos que no aportan nada. Si esta gestión la realizamos de manera dinámica, podemos optimizar en gran medida el uso de recursos, creando hilos cuando se detecte que es necesario y matándolos cuando la carga de trabajo se encuentre por debajo de un umbral.
+
+ Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del pool (el `watcher_thread`), que cada cierto tiempo
+ comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande,
+ ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación.
+
+ Cabe mencionar también que el pool tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato o bien esperar
+ a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un restart o a un stop de un servicio,
+ siendo el restart el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y
+ el stop el modo `hard` (necesitamos que el servicio pare de inmediato).
+
+ Por otro lado, hemos considerado que si los threads detectan un error operen igual que si se ha cerrado la conexión, evitando acceder a
+ zonas de memoria no inicializadas pero no parando el flujo de ejecución. TODO: completar con razones más fuertes
+
 - Demonio: TODO: comentar decisión final.
 
 - Librerías: en srclib se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
