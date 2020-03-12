@@ -20,7 +20,7 @@ enum { READ = 0, WRITE = 1 };
  * @param len_stdin_args
  * @return dynamic buffer with the output of the script
  */
-DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdin_args) {
+DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdin_args, int timeout) {
     int stdin_pipe[2];
     int stdout_pipe[2];
     pid_t pid;
@@ -68,13 +68,21 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
             close(stdin_pipe[WRITE]);
             kill(pid, SIGKILL);
             wait(NULL);
+            dynamic_buffer_destroy(db);
             return NULL;
         }
 
         // Write end must be closed so EOF is sent to child
         close(stdin_pipe[WRITE]);
 
-        dynamic_buffer_append_fd(db, stdout_pipe[READ]);
+        if (dynamic_buffer_append_fd_with_timeout(db, stdout_pipe[READ], timeout) == 0) {
+            close(stdout_pipe[READ]);
+            kill(pid, SIGKILL);
+            wait(NULL);
+            dynamic_buffer_destroy(db);
+            return NULL;
+        }
+
 
         close(stdout_pipe[READ]);
         wait(NULL);
@@ -87,10 +95,10 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
 
 }
 
-DynamicBuffer *execute_python_script(char *path, struct string stdin_args) {
-    return _execute_script("python3", path, stdin_args);
+DynamicBuffer *execute_python_script(char *path, struct string stdin_args, int timeout) {
+    return _execute_script("python3", path, stdin_args, timeout);
 }
 
-DynamicBuffer *execute_php_script(char *path, struct string stdin_args) {
-    return _execute_script("php", path, stdin_args);
+DynamicBuffer *execute_php_script(char *path, struct string stdin_args, int timeout) {
+    return _execute_script("php", path, stdin_args, timeout);
 }

@@ -33,12 +33,13 @@ int main() {
     sigset_t signal_prev;
     struct sigaction act;
 
-    //set_logging_limit(LOG_INFO);
-
     server_attrs = config_load(CONFIG_FILE);
     if (server_attrs == NULL) {
         return 1;
     }
+
+    set_logging_limit(server_attrs->log_priority);
+
     socked_fd = socket_open(server_attrs->listen_port, MAX_QUEUE_LEN);
     if (socked_fd < 0) {
         config_destroy(server_attrs);

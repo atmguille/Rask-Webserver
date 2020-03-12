@@ -239,9 +239,9 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
     }
 
     if (strcmp(extension, ".py") == 0) {
-        script_output = execute_python_script(filename, args);
+        script_output = execute_python_script(filename, args, server_attrs->script_timeout);
     } else if (strcmp(extension, ".php") == 0) {
-        script_output = execute_php_script(filename, args);
+        script_output = execute_php_script(filename, args, server_attrs->script_timeout);
     } else {
         response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
         dynamic_buffer_destroy(response);

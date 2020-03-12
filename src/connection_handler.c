@@ -31,7 +31,7 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     int response_code;
 
     // Set client_fd socket timeout
-    socket_set_timeout(client_fd, 10);
+    socket_set_timeout(client_fd, server_attrs->socket_timeout);
 
     response_code = request_process(&request, client_fd);
     if (response_code < 0) {
