@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
-
 #include "dynamic_buffer.h"
 #include "../logging/logging.h"
 

@@ -2,8 +2,6 @@
 #define EXECUTE_SCRIPTS_H
 
 #include "../string/string.h"
-
-
 #include "../dynamic_buffer/dynamic_buffer.h"
 
 /**
