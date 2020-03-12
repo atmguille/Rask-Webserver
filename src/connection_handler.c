@@ -55,5 +55,5 @@ int connection_handler(int client_fd, struct config *server_attrs) {
     }
 
 
-    return OK;
+    return response_code;
 }
