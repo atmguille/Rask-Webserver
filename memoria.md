@@ -31,19 +31,38 @@ Este paso puede considerarse como uno de los más importantes del proyecto, ya q
 
      Como comparación,  `Apache` en su configuración por defecto y en *idle* también usa aproximadamente 8 MiB de memoria RAM.
 
- Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del pool (el `watcher_thread`), que cada cierto tiempo
- comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande,
- ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación.
+ Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del *pool* (el `watcher_thread`), que cada cierto tiempo comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande, ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación. Cabe mencionar también que el *pool* tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato todas las conexiones o bien esperar a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un *restart* o a un *stop* de un servicio, siendo el *restart* el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y el *stop* el modo `hard` (necesitamos que el servicio pare de inmediato).
 
- Cabe mencionar también que el pool tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato o bien esperar
- a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un restart o a un stop de un servicio,
- siendo el restart el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y
- el stop el modo `hard` (necesitamos que el servicio pare de inmediato).
+ Por otro lado, hemos considerado que si los *threads* detectan un error operen igual que si se ha cerrado la conexión, evitando acceder a zonas de memoria no inicializadas pero no parando el flujo de ejecución. TODO: completar con razones más fuertes
 
- Por otro lado, hemos considerado que si los threads detectan un error operen igual que si se ha cerrado la conexión, evitando acceder a
- zonas de memoria no inicializadas pero no parando el flujo de ejecución. TODO: completar con razones más fuertes
+### Instalación
 
-- Demonio: TODO: comentar decisión final.
+Al ejecutar `sudo make install`, se copiarán los siguientes ficheros:
+
+#### Ejecutable
+
+Se copiará el ejecutable `./cmake-build-config/rask` a `/usr/local/bin`. Esto permitirá ejecutar el servidor llamando a `rask` desde cualquier terminal. Cabe mencionar que si se ejecuta directamente de esta manera no correrá en modo demonio. El motivo por el que hemos escogido `/usr/local/bin` y no `/usr/bin` es doble:
+
+- En Linux `/usr/bin` está pensado para programas administrados por el gestor de paquetes (como `apt` en Ubuntu o `pacman` en Arch), mientras que `/usr/local/bin` es preferido para programas compilados localmente.
+- En macOS no se puede modificar el directorio `/usr/bin` a no ser que se desactive SIP (*System Integrity Protection*).
+
+#### Fichero de configuración
+
+Se copiará el archivo de configuración `./files/rask.conf` a `/etc/rask/`, directorio donde es usual almacenar los archivos de configuración según el manual (ver `hier`).
+
+#### Página web
+
+Se copiará todo el contenido de `./www` a `/var/www`. Este es el directorio que usa por defecto Apache.
+
+#### Archivo de unidad para systemd
+
+Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la distribución de Linux soporta systemd.
+
+### Demonio
+
+Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar. TODO: guillote, si logras hacer eso sin actualizar systemd explicalo aquí
+
+
 
 - Librerías: en srclib se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
     1. **execute_scripts**: este fichero contiene el código encargado de ejecutar scripts en un proceso aparte, pasándole los argumentos por entrada estándar (stdin).
