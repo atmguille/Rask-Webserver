@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include "dynamic_buffer.h"
 #include "../logging/logging.h"
 
@@ -112,12 +113,29 @@ size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size) {
     return bytes_read;
 }
 
-size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd) {
+size_t dynamic_buffer_append_fd_with_timeout(DynamicBuffer *db, int fd, int timeout) {
     size_t bytes_read;
     size_t total_bytes_read = 0;
+    fd_set set;
+    struct timeval tv;
 
+    FD_ZERO(&set);
+    FD_SET(fd, &set);
+    tv.tv_sec = timeout; // Select updates the timeout
+    tv.tv_usec = 0;
 
     do {
+
+        if (select(2, &set, NULL, NULL, &tv) < 0) {
+            print_error("when calling select: %s", strerror(errno));
+            return 0;
+        }
+
+        if (!FD_ISSET(fd, &set)) {
+            print_warning("fd timeout!");
+            return 0;
+        }
+
         bytes_read = read(fd, &db->buffer[db->size], db->capacity - db->size);
         print_debug("Read %zu bytes from fd", bytes_read);
         total_bytes_read += bytes_read;
