@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.10)
 
 project(rask)
 
@@ -25,4 +25,4 @@ if (APPLE)
 else()
     target_link_libraries(rask confuse)
 endif()
-#target_compile_options(server PRIVATE -Wall -Wextra -pedantic)
+target_compile_options(rask PRIVATE -Wall -Wextra -pedantic)
