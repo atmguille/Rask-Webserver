@@ -44,12 +44,17 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
             exit(1);
         }
 
+        if (timeout > 0) {
+            alarm(timeout);
+        }
+
         execlp(interpreter, interpreter, path, NULL);
 
         print_error("excelp failed");
         exit(EXIT_FAILURE);
 
     } else if (pid > 0) { // Father
+        int child_exit_status;
         DynamicBuffer *db = dynamic_buffer_ini(DEFAULT_FD_BUFFER);
         if (db == NULL) {
             print_error("failed to allocate memory for dynamic buffer");
@@ -75,18 +80,17 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
         // Write end must be closed so EOF is sent to child
         close(stdin_pipe[WRITE]);
 
-        if (dynamic_buffer_append_fd_with_timeout(db, stdout_pipe[READ], timeout) == 0) {
-            close(stdout_pipe[READ]);
-            kill(pid, SIGKILL);
-            wait(NULL);
-            dynamic_buffer_destroy(db);
-            return NULL;
-        }
-
+        dynamic_buffer_append_fd(db, stdout_pipe[READ]);
 
         close(stdout_pipe[READ]);
-        wait(NULL);
-        return db;
+        // The program could've tricked us sending an EOF, so we kill it
+        kill(pid, SIGKILL);
+        wait(&child_exit_status);
+        if (child_exit_status == SIGKILL) {
+            print_warning("killed script after it sent EOF");
+        } else if (child_exit_status == SIGALRM) {
+            print_warning("killed script because it took more than %d seconds", timeout);
+        }
 
     } else {
         print_error("failed to create child to execute script");

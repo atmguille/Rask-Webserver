@@ -58,10 +58,9 @@ size_t dynamic_buffer_append_file(DynamicBuffer *db, FILE *f, size_t size);
  * Appends the data received by fd to db (unless timeout expires)
  * @param db
  * @param fd file descriptor
- * @param timeout
  * @return size of the data received (0 if error or timeout)
  */
-size_t dynamic_buffer_append_fd_with_timeout(DynamicBuffer *db, int fd, int timeout);
+size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd);
 
 /**
  * Appends the contents of f to the internal buffer WITHOUT resizing it
