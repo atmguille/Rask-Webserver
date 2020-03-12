@@ -125,8 +125,7 @@ size_t dynamic_buffer_append_fd_with_timeout(DynamicBuffer *db, int fd, int time
     tv.tv_usec = 0;
 
     do {
-
-        if (select(2, &set, NULL, NULL, &tv) < 0) {
+        if (select(FD_SETSIZE, &set, NULL, NULL, &tv) < 0) {
             print_error("when calling select: %s", strerror(errno));
             return 0;
         }
