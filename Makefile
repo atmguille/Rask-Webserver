@@ -27,7 +27,7 @@ uninstall:
 
 server:
 	mkdir -p $(BUILD_DIR)
-	cmake -B./$(BUILD_DIR)
+	cd cmake-build-debug && cmake ..
 	make -C $(BUILD_DIR) -j
 
 clean:
