@@ -10,7 +10,7 @@
 struct _DynamicBuffer {
     size_t capacity;
     size_t size;
-    void *buffer;
+    char *buffer;
 };
 
 DynamicBuffer *dynamic_buffer_ini(int initial_capacity) {

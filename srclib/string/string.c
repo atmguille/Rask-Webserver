@@ -3,7 +3,7 @@
 
 bool string_are_equal(struct string s1, struct string s2) {
     if (s1.size == s2.size) {
-        for (int i = 0; i < s1.size; i++) {
+        for (unsigned int i = 0; i < s1.size; i++) {
             if (s1.data[i] != s2.data[i]) {
                 return false;
             }
@@ -16,7 +16,7 @@ bool string_are_equal(struct string s1, struct string s2) {
 }
 
 bool string_is_equal_to(struct string s1, const char *s2) {
-    int i;
+    unsigned int i;
     const char *iterator;
 
     for (i = 0, iterator = s2; i < s1.size && *iterator != '\0'; i++, iterator++) {

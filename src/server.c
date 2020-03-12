@@ -13,12 +13,12 @@ enum kill_type {HARD, SOFT};
 // Needs to be declared as global so it can be accessed in signal_handlers
 enum kill_type type;
 
-void SIGINT_handler(int sig) {
+void SIGINT_handler() {
     print_info("SIGINT captured. Soft killing threads and finishing...");
     type = SOFT;
 }
 
-void SIGTERM_handler(int sig) {
+void SIGTERM_handler() {
     print_info("SIGTERM captured. Hard killing threads and finishing...");
     type = HARD;
 }

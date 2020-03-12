@@ -368,7 +368,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     request_get_header(request, &header, "If-None-Match");
     //print_info("%.*s", header.size, header.data);
 
-    snprintf(etag, GENERAL_SIZE, "%ld%.*s", last_modified, request->path.size, request->path.data);
+    snprintf(etag, GENERAL_SIZE, "%ld%.*s", last_modified, (int)request->path.size, request->path.data);
     //print_info("ETAG: %s", etag);
 
     if (string_is_equal_to(header, etag)) {

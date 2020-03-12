@@ -14,7 +14,7 @@
  * @return true if valid
  */
 bool _is_request_valid(struct request *request) {
-    for (int i = 0; i < request->path.size - 1; i++) {
+    for (unsigned int i = 0; i < request->path.size - 1; i++) {
         if (request->path.data[i] == '.' && request->path.data[i + 1] == '.') {
             return false;
         }
@@ -28,7 +28,7 @@ bool _is_request_valid(struct request *request) {
  * @param request
  */
 void _parse_url_args(struct request *request) {
-    for (int i = 0; i < request->path.size; i++) {
+    for (unsigned int i = 0; i < request->path.size; i++) {
         if (request->path.data[i] == '?') {
             request->url_args.data = &request->path.data[i + 1];
             request->url_args.size = request->path.size - i - 1;
@@ -122,7 +122,7 @@ int request_process(struct request *request, int client_fd) {
 
 
 void request_get_header(struct request *request, struct string *header, const char *header_name) {
-    for (int i = 0; i < request->num_headers; i++) {
+    for (unsigned int i = 0; i < request->num_headers; i++) {
         struct string current_header_name = {request->headers[i].name, request->headers[i].name_len};
 
         if (string_is_equal_to(current_header_name, header_name)) {

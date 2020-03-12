@@ -106,7 +106,7 @@ ThreadPool *thread_pool_ini(int socket_fd, struct config *server_attrs) {
  * This signal handler function will be called when soft-killing a working thread (because of server's under-usage)
  * @param sig signal received by
  */
-void _soft_kill(int sig) {
+void _soft_kill() {
     print_debug("soft killed");
     pthread_exit(NULL);
 }
@@ -245,8 +245,6 @@ void _shrink_pool(ThreadPool *pool) {
     print_info("pool size decreased, now there are %d threads", pool->n_spawned_threads);
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
 /**
  * Function to be executed by the watcher, dynamically controlling the number of working threads
  * @param args thread pool
@@ -273,7 +271,6 @@ void *_watcher_function(void *args) {
         pthread_mutex_unlock(&t_pool->watcher_mutex);
     }
 }
-#pragma clang diagnostic pop
 
 /**
  * Destroys the thread_pool, waiting or not for the threads to finish their tasks (indicated in type)
