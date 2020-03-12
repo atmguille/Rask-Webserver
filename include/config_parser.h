@@ -10,6 +10,9 @@ struct config {
     char *default_path;
     int max_clients;
     int listen_port;
+    int log_priority;
+    int script_timeout;
+    int socket_timeout;
 };
 
 /**
