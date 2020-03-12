@@ -117,7 +117,7 @@ Finalmente, el main del servidor se encuentra en `server.c`.
 - Las cabeceras del código fuente se encuentran en el directorio includes. Además, aquí se encuentra el archivo `utils.h`, que contiene 
 diversas macros con códigos de estado de peticiones o respuestas, necesarios en múltiples ficheros.
 
-- Algunos tests desarrollados se encuentran en la carpeta tests, donde `client.py` que se ha implementado para realizar diversas pruebas de estrés a nuestro servidor
+- Algunos tests desarrollados se encuentran en la carpeta tests, donde `client.py` se ha implementado para realizar diversas pruebas de estrés a nuestro servidor
 y `post.py` contiene una petición post con datos en el body.
 
 ## Conclusiones
