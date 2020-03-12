@@ -7,6 +7,7 @@
 
 // The maximum length at which the listening queue might grow is silently limited to 128 on most implementation
 #define MAX_QUEUE_LEN 128
+#define CONFIG_FILE "/etc/rask/rask.conf"
 
 enum kill_type {HARD, SOFT};
 
@@ -34,7 +35,7 @@ int main() {
 
     //set_logging_limit(LOG_INFO);
 
-    server_attrs = config_load("/etc/rask/rask.conf");
+    server_attrs = config_load(CONFIG_FILE);
     if (server_attrs == NULL) {
         return 1;
     }
@@ -50,6 +51,7 @@ int main() {
     sigaddset(&signal_to_block, SIGTERM);
     if (sigprocmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
         print_error("failed to block signal in father");
+        socket_close(socked_fd);
         config_destroy(server_attrs);
         return 1;
     }
@@ -87,7 +89,7 @@ int main() {
         return 1;
     }
 
-    pause();
+    sigsuspend(&signal_prev);
 
     if (type == SOFT) {
         thread_pool_soft_destroy(threadPool);
