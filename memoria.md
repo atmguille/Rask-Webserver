@@ -99,11 +99,7 @@ Esta librería es una abstracción de un *buffer* dinámico, esto es, un *buffer
 
 ### Scripts
 
-En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar
-    en formato url-encode, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde
-    la web. Se considera además que se solicita la ejecución de un script a través de `GET`
-    cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que 
-    siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Bad Request TODO: este código hay que revisar si es el idóneo)
+En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar en formato `url-encode`, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde la web. Se considera además que se solicita la ejecución de un script a través de `GET`cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Bad Request TODO: este código hay que revisar si es el idóneo)
 
 ## Organización y estructura de módulos
 
