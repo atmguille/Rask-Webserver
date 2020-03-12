@@ -62,24 +62,48 @@ Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la dis
 
 Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar. TODO: guillote, si logras hacer eso sin actualizar systemd explicalo aquí
 
+### Librerías
 
+En `srclib` se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
 
-- Librerías: en srclib se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
-    1. **execute_scripts**: este fichero contiene el código encargado de ejecutar scripts en un proceso aparte, pasándole los argumentos por entrada estándar (stdin).
-    Para ello, como es necesario escribir y leer del proceso que ejecuta el script, necesitamos hacer uso de `pipes` y no podemos usar `popen`, ya que 
-    este último solo permite la comunicación en un solo sentido. Valoramos la implementación de un timeout, haciendo uso de la función `select`, pero 
-    tras consultar al profesor de teoría nos decantamos por no hacerlo. TODO: razones. No es difícil hacerlo como extra si queremos.
-    
-    2. **socket**: agrupa las funciones relacionadas con la gestión de los sockets. Cabe comentar la funcionalidad extra que maneja la función
-    `socket_set_timeout`, fijando un timeout para un socket concreto. Esto es usado en el servidor para establecer un límite de tiempo en el que nos bloqueamos
-    en el read esperando la petición del cliente.
-    TODO: comentar decisión final de qué librerías se hacen. TODO: logging, dynamic_buffer, string...
+#### Execute scripts
 
-- En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar
-      en formato url-encode, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde
-      la web. Se considera además que se solicita la ejecución de un script a través de `GET`
-      cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que 
-      siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Bad Request TODO: este código hay que revisar si es el idóneo)
+Contiene el código encargado de ejecutar *scripts* en un proceso aparte, pasándole los argumentos por entrada estándar (stdin). Para ello, como es necesario escribir y leer del proceso que ejecuta el *script*, necesitamos hacer uso de *pipes* y no podemos usar `popen`, ya que 
+este último solo permite la comunicación en un solo sentido. Además, hemos implementado un *timeout*. Aunque esto también pueda realizarse en los propios *scripts*, como desarrolladores de un servidor web genérico no podemos asumir que todos los usuarios de nuestro servidor vayan a implementar un *timeout* en sus scripts. 
+
+#### Socket
+
+Agrupa las funciones relacionadas con la gestión de los *sockets*. Comentamos brevemente las funciones más destacadas
+
+- `socket_open`: llama a las rutinas `socket`, `bind` y `listen`.
+- `socket_set_timeout`: fija un *timeout* para un socket concreto. Esto es usado en el servidor para establecer un límite de tiempo en el que nos bloqueamos en el *read* esperando la petición del cliente.
+- `ip_to_string`: es una función interna que devuelve una cadena de caracteres con la representación usual de una dirección IP. Usamos esto para imprimir en un formato comprensible la dirección IP de los clientes del servidor.
+
+#### String
+
+Como la librería `picohttpparser` nos devuelve los campos de la cabecera con pares `char *` - `int` decidimos crear una estructura pública `string`, conteniendo tanto el puntero al inicio de la cadena de caracteres como el tamaño de esta. Esto simplifica el paso de argumentos. Además, se incluyen dos funciones, una para comprobar si dos estructuras strings son iguales y otra para comprobar si una estructura string es igual a una cadena de caracteres terminada en `\0`. 
+
+#### Logging
+
+Como en todo gran proyecto se ha de informar al usuario del estado del programa. Es por esto que desde el principio decidimos crear esta librería. Tiene una interfaz muy parecida a `printf` en el sentido que recibe primero una cadena de caracteres con el formato (usando "%s", "%d", etc.) seguida de un número variable de argumentos. El objetivo de esta librería es doble:
+
+- Por una parte, se puede controlar el nivel de verbosidad del servidor. En la etapa de desarrollo, querremos ver todos los mensajes en el log. Sin embargo, en la fase de despliegue sólo querremos ver los mensajes de mayor severidad (advertencia y errores)
+- Lograr que los *logs* sean iguales independientemente de si el servidor corre en modo *daemon* o en modo normal. Si los mensajes se ven a través de `systemd`, el sistema añadirá automáticamente la hora en la que fueron emitidos. Sin embargo, si se corre normalmente, esto no ocurriría de no ser por esta librería.
+
+#### Dynamic Buffer
+
+Esta librería es una abstracción de un *buffer* dinámico, esto es, un *buffer* al que se le añaden cosas, y que si se queda sin espacio hace un `realloc` para crecer. Internamente se mantiene una cadena de caracteres del tamaño que el cliente especifique y dos enteros para saber la última posición ocupada y el tamaño del *buffer*.  Su utilidad es doble:
+
+- A la hora de leer la respuesta de un *script* no sabemos cómo de larga va a ser. No podríamos usar un *buffer* de tamaño fijo e ir mandándolo "a trozos" ya que debemos conocer el tamaño de la respuesta a la hora de escribir el `Content-Length`. Es por esto que un *buffer* dinámico es la solución perfecta.
+- A la hora de crear una respuesta HTTP nos da mucha flexibilidad, ya que no tenemos que preocuparnos de que la cabecera no quepa en el *buffer*. Además, hemos incorporado numerosas funcionalidades: añadir una cadena de caracteres, un número, un fichero (entero), un fichero (por partes) y el contenido leído de un descriptor de fichero (últil para leer de un *pipe*). A la hora de mandar ficheros con el servidor se pueden utilizar las dos funciones. Nosotros hemos optado por mandar el fichero por partes, es decir, se leerá el fichero hasta el final del *buffer* (que por defecto tiene 4096 bytes, y, a no ser que la cabecera sea enorme, será el tamaño de este), se enviará, y se repetirá esta operación tantas veces como sea necesario. Más sencilla era nuestra implementación inicial, que era leer el archivo entero en el *buffer* y mandarlo directamente. La desventaja de esto era que si el fichero era muy grande el servidor consumía muchísima memoria. 
+
+### Scripts
+
+En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar
+    en formato url-encode, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde
+    la web. Se considera además que se solicita la ejecución de un script a través de `GET`
+    cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que 
+    siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Bad Request TODO: este código hay que revisar si es el idóneo)
 
 ## Organización y estructura de módulos
 
