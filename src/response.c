@@ -244,7 +244,7 @@ int _response_cgi(int client_fd, struct config *server_attrs, struct string args
     } else if (strcmp(extension, ".php") == 0) {
         script_output = execute_php_script(filename, args, server_attrs->script_timeout);
     } else {
-        response_bad_request(client_fd, server_attrs); // TODO: quizás otro código de error se adapte mejor
+        response_not_implemented(client_fd, server_attrs);
         dynamic_buffer_destroy(response);
         return BAD_REQUEST;
     }
@@ -295,7 +295,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     extension = _find_extension(filename);
     if (extension == NULL) {
         print_info("don't know what to do with directory %s", filename);
-        response_not_implemented(client_fd, server_attrs); // TODO: not implemented or bad_request? en cgi devolvemos bad request y aqui esto
+        response_not_implemented(client_fd, server_attrs);
         free(filename);
         return ERROR;
     }
