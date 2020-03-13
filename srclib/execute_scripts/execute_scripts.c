@@ -92,11 +92,12 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdi
             print_warning("killed script because it took more than %d seconds", timeout);
         }
 
+        return db;
+
     } else {
         print_error("failed to create child to execute script");
         return NULL;
     }
-
 }
 
 DynamicBuffer *execute_python_script(char *path, struct string stdin_args, int timeout) {
