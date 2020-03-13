@@ -58,7 +58,12 @@ struct config *config_load(char *config_file_name) {
     server_attrs->max_clients = (int) max_clients;
     server_attrs->listen_port = (int) listen_port;
     server_attrs->script_timeout = (int) script_timeout;
-    server_attrs->socket_timeout = (int) socket_timeout;
+    if (socket_timeout <  0) {
+        server_attrs->socket_timeout = 0;
+        print_info("socket_timeout was < 0. Setting it to 0...");
+    } else {
+        server_attrs->socket_timeout = (int) socket_timeout;
+    }
 
     if (strcmp(log_priority, "INFO") == 0) {
         server_attrs->log_priority = LOG_INFO;

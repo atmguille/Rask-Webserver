@@ -148,9 +148,6 @@ void *_worker_function(void *args) {
             }
 
             while(true) {
-                /* Avoid having an opened connection without closing its file descriptor
-                 * because pthread_cancel is called in the middle of the assignment */
-                // TODO: si nos cancelan justo cuando el socket se ha aceptado pero la variable no ha sido asignada
                 client_fd = socket_accept(pool->socket_fd);
                 if (client_fd == ERROR) {
                     continue;

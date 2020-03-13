@@ -48,5 +48,5 @@ The user could set the value of some variables if wanted, editing `rask.conf` in
 - **log_priority**: log level. Can be set to DEBUG, INFO, WARNING, ERROR or CRITICAL. If other option is written, log_priority will be set to INFO.
 - **max_clients**: maximum number of clients that the server can handle simultaneously.
 - **listen_port**: port where the server will listen for connections.
-- **script_timeout**: maximum number of seconds that a script will run. If timeout is reached, script will be killed.
-- **socket_timeout**: maximum number of seconds that the server will wait for a client to write in the socket. If timeout is reached, the connection is closed.
+- **script_timeout**: maximum number of seconds that a script will run. If timeout is reached, script will be killed. If set to a value < 0, there will be no timeout.
+- **socket_timeout**: maximum number of seconds that the server will wait for a client to write in the socket. If timeout is reached, the connection is closed. If set to a value < 0, there will be no timeout.
