@@ -1,8 +1,7 @@
 #ifndef CONNECTION_HANDLER_H
 #define CONNECTION_HANDLER_H
 
-#include "../includes/config_parser.h"
-#include "../includes/request.h" // TODO: esto es para que otros archivos que dependan del connection handler tengan los codigos de estado, quizas mejor algo comun
+#include "../include/config_parser.h"
 
 /**
  * Handles a connection with the client, reading a request and answering with the requested data

@@ -3,14 +3,13 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
-
 #include "dynamic_buffer.h"
 #include "../logging/logging.h"
 
 struct _DynamicBuffer {
     size_t capacity;
     size_t size;
-    void *buffer;
+    char *buffer;
 };
 
 DynamicBuffer *dynamic_buffer_ini(int initial_capacity) {
@@ -117,20 +116,16 @@ size_t dynamic_buffer_append_fd(DynamicBuffer *db, int fd) {
     size_t bytes_read;
     size_t total_bytes_read = 0;
 
-
     do {
         bytes_read = read(fd, &db->buffer[db->size], db->capacity - db->size);
         print_debug("Read %zu bytes from fd", bytes_read);
         total_bytes_read += bytes_read;
         db->size += bytes_read;
 
-        // If EOF reached, no need to grow the buffer any further
-        if (db->size < db->capacity) {
-            break;
-        } else {
+        if (db->size == db->capacity) {
             _grow_buffer(db, DEFAULT_FD_BUFFER);
         }
-    } while (bytes_read > 0);
+    } while (bytes_read > 0); // Read until EOF is reached
 
     return total_bytes_read;
 }

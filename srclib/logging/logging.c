@@ -2,24 +2,12 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 //  LOG_ERR is 1 and LOG_DEBUG is 7, so a smaller numbers means more important logs
 int log_limit = LOG_DEBUG;
-
-bool can_use_stdout() {
-    // We're going to check whether the stdout fd is open or not
-    int stdout_fd = 1;
-    return fcntl(stdout_fd, F_GETFD) != -1;
-}
-
-bool can_use_stderr() {
-    // We're going to check whether the stdout fd is open or not
-    int stderr_fd = 2;
-    return fcntl(stderr_fd, F_GETFD) != -1;
-}
 
 // IMPORTANT: do NOT free the string returned
 char* get_time() {
@@ -64,6 +52,7 @@ const char* get_priority_name(int priority) {
 
 void print_priority(int priority, bool use_stderr, const char* format, va_list args) {
     const char* priority_name;
+    FILE* f;
 
     // Don't log messages less important than the limit
     if (priority > log_limit) {
@@ -71,15 +60,16 @@ void print_priority(int priority, bool use_stderr, const char* format, va_list a
     }
 
     priority_name = get_priority_name(priority);
+    f = use_stderr? stderr: stdout;
 
-    if ((use_stderr && can_use_stderr()) || (!use_stderr && can_use_stdout())) {
-        FILE* f = use_stderr? stderr: stdout;
-        fprintf(f, "[%s] %s: ", get_time(), priority_name);
-        vfprintf(f, format, args);
-        fprintf(f, "\n");
+    // If the process was run with systemd
+    if (getenv("RUN_FROM_SYSTEMD")) {
+        fprintf(f, "%s: ", priority_name);
     } else {
-        syslog(priority, "[%s] %s", priority_name, format);
+        fprintf(f, "[%s] %s: ", get_time(), priority_name);
     }
+    vfprintf(f, format, args);
+    fprintf(f, "\n");
 }
 
 void print_critical(const char* format, ...) {

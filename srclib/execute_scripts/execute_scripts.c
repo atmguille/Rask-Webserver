@@ -20,7 +20,7 @@ enum { READ = 0, WRITE = 1 };
  * @param len_stdin_args
  * @return dynamic buffer with the output of the script
  */
-DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_args, int len_stdin_args) {
+DynamicBuffer *_execute_script(char *interpreter, char *path, struct string stdin_args, int timeout) {
     int stdin_pipe[2];
     int stdout_pipe[2];
     pid_t pid;
@@ -44,14 +44,20 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
             exit(1);
         }
 
+        if (timeout > 0) {
+            alarm(timeout);
+        }
+
         execlp(interpreter, interpreter, path, NULL);
 
         print_error("excelp failed");
         exit(EXIT_FAILURE);
 
     } else if (pid > 0) { // Father
+        int child_exit_status;
         DynamicBuffer *db = dynamic_buffer_ini(DEFAULT_FD_BUFFER);
         if (db == NULL) {
+            print_error("failed to allocate memory for dynamic buffer");
             kill(pid, SIGKILL);
             wait(NULL);
             return NULL;
@@ -61,10 +67,13 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
         close(stdin_pipe[READ]);
         close(stdout_pipe[WRITE]);
 
-        if (write(stdin_pipe[WRITE], stdin_args, len_stdin_args) == -1) {
+        if (write(stdin_pipe[WRITE], stdin_args.data, stdin_args.size) == -1) {
             print_error("failed to write stdin_args to child: %s", strerror(errno));
+            close(stdout_pipe[READ]);
+            close(stdin_pipe[WRITE]);
             kill(pid, SIGKILL);
             wait(NULL);
+            dynamic_buffer_destroy(db);
             return NULL;
         }
 
@@ -74,20 +83,27 @@ DynamicBuffer *_execute_script(char *interpreter, char *path, const char *stdin_
         dynamic_buffer_append_fd(db, stdout_pipe[READ]);
 
         close(stdout_pipe[READ]);
-        wait(NULL);
+        // The program could've tricked us sending an EOF, so we kill it
+        kill(pid, SIGKILL);
+        wait(&child_exit_status);
+        if (child_exit_status == SIGKILL) {
+            print_warning("killed script after it sent EOF");
+        } else if (child_exit_status == SIGALRM) {
+            print_warning("killed script because it took more than %d seconds", timeout);
+        }
+
         return db;
 
     } else {
         print_error("failed to create child to execute script");
         return NULL;
     }
-
 }
 
-DynamicBuffer *execute_python_script(char *path, const char *stdin_args, int len_stdin_args) {
-    return _execute_script("python3", path, stdin_args, len_stdin_args);
+DynamicBuffer *execute_python_script(char *path, struct string stdin_args, int timeout) {
+    return _execute_script("python3", path, stdin_args, timeout);
 }
 
-DynamicBuffer *execute_php_script(char *path, const char *stdin_args, int len_stdin_args) {
-    return _execute_script("php", path, stdin_args, len_stdin_args);
+DynamicBuffer *execute_php_script(char *path, struct string stdin_args, int timeout) {
+    return _execute_script("php", path, stdin_args, timeout);
 }

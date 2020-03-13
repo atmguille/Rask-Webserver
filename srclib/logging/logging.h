@@ -2,31 +2,31 @@
 #define LOGGING_H
 
 /**
- * Prints a critical message to stderr or to the system log if the process is a daemon
+ * Prints a critical message to stderr (inserting the date if the process is not running on systemd)
  * @param format of the message that will be printed
  */
 void print_critical(const char* string, ...);
 
 /**
- * Prints an error message to stderr or to the system log if the process is a daemon
+ * Prints an error message to stderr (inserting the date if the process is not running on systemd)
  * @param format of the message that will be printed
  */
 void print_error(const char* format, ...);
 
 /**
- * Prints a warning message to stdout or to the system log if the process is a daemon
+ * Prints a warning message to stdout (inserting the date if the process is not running on systemd)
  * @param format of the message that will be printed
  */
 void print_warning(const char* format, ...);
 
 /**
- * Prints an info message to stdout or to the system log if the process is a daemon
+ * Prints an info message to stdout (inserting the date if the process is not running on systemd)
  * @param format of the message that will be printed
  */
 void print_info(const char* format, ...);
 
 /**
- * Prints a debug message to stdout or to the system log if the process is a daemon
+ * Prints a debug message to stdout (inserting the date if the process is not running on systemd)
  * @param format of the message that will be printed
  */
 void print_debug(const char* format, ...);

@@ -1,35 +1,69 @@
 #include <stdio.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include "../includes/request.h"
+#include "../include/request.h"
 #include "../srclib/logging/logging.h"
+#include "../include/utils.h"
 
-struct request *request_ini() {
-    struct request *request;
-    request = (struct request *)malloc(sizeof(struct request));
-    if (request == NULL) {
-        print_error("failed to allocate memory for request struct");
-        return NULL;
-    }
-    request->len_buffer = 0;
-    request->num_headers = MAX_HEADERS;
-    return request;
-}
 
 /**
  * Checks if a request is valid (method supported, ...)
  * @param request
  * @return true if valid
  */
-bool _is_request_valid(struct request *request) { // TODO: habrá que hacer más comprobaciones imagino
+bool _is_request_valid(struct request *request) {
+    for (unsigned int i = 0; i < request->path.size - 1; i++) {
+        if (request->path.data[i] == '.' && request->path.data[i + 1] == '.') {
+            return false;
+        }
+    }
+
     return true;
 }
 
-int process_request(int client_fd, struct request *request) {
+/**
+ * Look for url_args after ? and fill the correct fields in the struct
+ * @param request
+ */
+void _parse_url_args(struct request *request) {
+    for (unsigned int i = 0; i < request->path.size; i++) {
+        if (request->path.data[i] == '?') {
+            request->url_args.data = &request->path.data[i + 1];
+            request->url_args.size = request->path.size - i - 1;
+            request->path.size = i;  // Update length so path ends just before ?
+            return;
+        }
+    }
+    // If there are no url_args
+    request->url_args.data = NULL;
+    request->url_args.size = 0;
+}
+
+/**
+ * Fill the body fields in the struct with the data after the headers
+ * @param request
+ */
+void _parse_body(struct request *request) {
+    struct phr_header *last_header;
+
+    // Find the body from the last header
+    last_header = &request->headers[request->num_headers - 1];
+    // At the end of the header, "\r\n\r\n" is found, which has 4 characters.
+    request->body.data = (char *)&last_header->value[last_header->value_len] + 4;
+    request->body.size = request->len_buffer - (request->body.data - request->buffer);
+}
+
+int request_process(struct request *request, int client_fd) {
     ssize_t ret;
+    char *method;
+    size_t method_len;
+    char *path;
+    size_t path_len;
+
+    request->len_buffer = 0;
+    request->num_headers = MAX_HEADERS;
 
     while (true) {
         // Keep on reading if the read function was interrupted by a signal
@@ -53,10 +87,10 @@ int process_request(int client_fd, struct request *request) {
         ret = phr_parse_request(
                 request->buffer,
                 request->len_buffer,
-                (const char **) &request->method,
-                &request->method_len,
-                (const char **) &request->path,
-                &request->path_len,
+                (const char **) &method,
+                &method_len,
+                (const char **) &path,
+                &path_len,
                 &request->minor_version,
                 request->headers,
                 &request->num_headers,
@@ -65,14 +99,20 @@ int process_request(int client_fd, struct request *request) {
             break;
         } else if (ret == -1) {
             print_error("error parsing request");
-            return PARSE_ERROR;
+            return BAD_REQUEST;
         } else if (ret == -2 && request->len_buffer == MAX_BUFFER) {
-            print_error("request is too long"); // TODO: handle this case
+            print_error("request is too long");
             return REQUEST_TOO_LONG;
         }
     }
 
+    request->method.data = method;
+    request->method.size = method_len;
+    request->path.data = path;
+    request->path.size = path_len;
     if (_is_request_valid(request)) {
+        _parse_url_args(request);
+        _parse_body(request);
         return OK;
     } else {
         return BAD_REQUEST;
@@ -80,3 +120,18 @@ int process_request(int client_fd, struct request *request) {
 
 }
 
+
+void request_get_header(struct request *request, struct string *header, const char *header_name) {
+    for (unsigned int i = 0; i < request->num_headers; i++) {
+        struct string current_header_name = {request->headers[i].name, request->headers[i].name_len};
+
+        if (string_is_equal_to(current_header_name, header_name)) {
+            header->data = request->headers[i].value;
+            header->size = request->headers[i].value_len;
+            return;
+        }
+    }
+
+    header->data = NULL;
+    header->size = 0;
+}

@@ -1,24 +1,25 @@
 #include "../srclib/socket/socket.h"
-#include "../includes/thread_pool.h"
-#include "../includes/config_parser.h"
+#include "../include/thread_pool.h"
+#include "../include/config_parser.h"
 #include "../srclib/logging/logging.h"
 #include <unistd.h>
 #include <signal.h>
 
 // The maximum length at which the listening queue might grow is silently limited to 128 on most implementation
 #define MAX_QUEUE_LEN 128
+#define CONFIG_FILE "/etc/rask/rask.conf"
 
 enum kill_type {HARD, SOFT};
 
 // Needs to be declared as global so it can be accessed in signal_handlers
 enum kill_type type;
 
-void SIGINT_handler(int sig) {
+void SIGINT_handler() {
     print_info("SIGINT captured. Soft killing threads and finishing...");
     type = SOFT;
 }
 
-void SIGTERM_handler(int sig) {
+void SIGTERM_handler() {
     print_info("SIGTERM captured. Hard killing threads and finishing...");
     type = HARD;
 }
@@ -32,10 +33,13 @@ int main() {
     sigset_t signal_prev;
     struct sigaction act;
 
-    server_attrs = config_load("../files/server.conf");
+    server_attrs = config_load(CONFIG_FILE);
     if (server_attrs == NULL) {
         return 1;
     }
+
+    set_logging_limit(server_attrs->log_priority);
+
     socked_fd = socket_open(server_attrs->listen_port, MAX_QUEUE_LEN);
     if (socked_fd < 0) {
         config_destroy(server_attrs);
@@ -48,6 +52,7 @@ int main() {
     sigaddset(&signal_to_block, SIGTERM);
     if (sigprocmask(SIG_BLOCK, &signal_to_block, &signal_prev) < 0) {
         print_error("failed to block signal in father");
+        socket_close(socked_fd);
         config_destroy(server_attrs);
         return 1;
     }
@@ -68,6 +73,8 @@ int main() {
 
     // Assign signal handlers
     act.sa_flags = 0;
+    sigemptyset(&signal_prev);
+    act.sa_mask = signal_prev; // So as to avoid valgrind warning
     act.sa_handler = SIGINT_handler;
     if (sigaction(SIGINT, &act, NULL) < 0) {
         print_error("failed to create SIGINT handler");
@@ -83,7 +90,7 @@ int main() {
         return 1;
     }
 
-    pause();
+    sigsuspend(&signal_prev);
 
     if (type == SOFT) {
         thread_pool_soft_destroy(threadPool);

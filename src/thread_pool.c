@@ -1,7 +1,8 @@
-#include "../includes/thread_pool.h"
+#include "../include/thread_pool.h"
 #include "../srclib/socket/socket.h"
 #include "../srclib/logging/logging.h"
-#include "../includes/connection_handler.h"
+#include "../include/connection_handler.h"
+#include "../include/utils.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>
@@ -105,7 +106,7 @@ ThreadPool *thread_pool_ini(int socket_fd, struct config *server_attrs) {
  * This signal handler function will be called when soft-killing a working thread (because of server's under-usage)
  * @param sig signal received by
  */
-void _soft_kill(int sig) {
+void _soft_kill() {
     print_debug("soft killed");
     pthread_exit(NULL);
 }
@@ -115,8 +116,10 @@ void _soft_kill(int sig) {
  * @param client_fd
  */
 static void _cleanup_handler(void *client_fd) {
-    socket_close(*((int *)client_fd));
-    print_debug("client_fd closed");
+    if (*((int *)client_fd) != -1) {
+        socket_close(*((int *)client_fd));
+        print_debug("client_fd closed");
+    }
 }
 
 /**
@@ -128,14 +131,16 @@ void *_worker_function(void *args) {
     sigset_t signal_to_block;
     sigset_t signal_prev;
     struct sigaction act;
-    char buffer[BUFFER_LEN];
-    int client_fd;
+    int response_code;
+    int client_fd = -1;
 
     /* Threads will call, among others, this function when being cancelled by the father (via pthread_cancel()
      * or when calling pthread_exit(). With this, the connection file descriptor is ensured to be closed */
     pthread_cleanup_push(_cleanup_handler, (void *)&client_fd);
 
             act.sa_flags = 0;
+            sigemptyset(&signal_prev);
+            act.sa_mask = signal_prev; // So as to avoid valgrind warning
             act.sa_handler = _soft_kill;
             if (sigaction(SIGURG, &act, NULL) < 0) {
                 print_error("Error creating signal handler");
@@ -143,9 +148,6 @@ void *_worker_function(void *args) {
             }
 
             while(true) {
-                /* Avoid having an opened connection without closing its file descriptor
-                 * because pthread_cancel is called in the middle of the assignment */
-                // TODO: si nos cancelan justo cuando el socket se ha aceptado pero la variable no ha sido asignada
                 client_fd = socket_accept(pool->socket_fd);
                 if (client_fd == ERROR) {
                     continue;
@@ -170,7 +172,10 @@ void *_worker_function(void *args) {
                     return NULL;
                 }
 
-                while (connection_handler(client_fd, pool->server_attrs) != CLOSE_CONNECTION);
+                do {
+                    response_code = connection_handler(client_fd, pool->server_attrs);
+                } while (response_code != CLOSE_CONNECTION && response_code != ERROR); // Threads continue accepting other connections
+
                 socket_close(client_fd);
 
                 pthread_mutex_lock(&pool->shared_mutex);
@@ -237,8 +242,6 @@ void _shrink_pool(ThreadPool *pool) {
     print_info("pool size decreased, now there are %d threads", pool->n_spawned_threads);
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
 /**
  * Function to be executed by the watcher, dynamically controlling the number of working threads
  * @param args thread pool
@@ -265,7 +268,6 @@ void *_watcher_function(void *args) {
         pthread_mutex_unlock(&t_pool->watcher_mutex);
     }
 }
-#pragma clang diagnostic pop
 
 /**
  * Destroys the thread_pool, waiting or not for the threads to finish their tasks (indicated in type)

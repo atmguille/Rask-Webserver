@@ -3,9 +3,8 @@
 
 #include "config_parser.h"
 
-#define INITIAL_THREADS   6
-#define WATCHER_FREQUENCY 50    // The watcher will run every WATCHER_FREQUENCY milliseconds
-#define BUFFER_LEN        4096
+#define INITIAL_THREADS   100
+#define WATCHER_FREQUENCY 10    // The watcher will run every WATCHER_FREQUENCY milliseconds
 
 typedef struct _ThreadPool ThreadPool;
 
@@ -29,4 +28,4 @@ void thread_pool_hard_destroy(ThreadPool *pool);
  */
 void thread_pool_soft_destroy(ThreadPool *pool);
 
-#endif
+#endif //THREAD_POOL_H
