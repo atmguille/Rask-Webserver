@@ -15,11 +15,26 @@ if (APPLE)
 endif()
 
 add_library(logging srclib/logging/logging.c)
-find_package(Threads REQUIRED)
-add_executable(rask src/server.c src/connection_handler.c srclib/picohttpparser/picohttpparser.c srclib/socket/socket.c src/thread_pool.c srclib/dynamic_buffer/dynamic_buffer.c src/config_parser.c src/request.c src/response.c srclib/execute_scripts/execute_scripts.c srclib/string/string.c)
+add_library(string srclib/string/string.c)
+add_library(socket srclib/socket/socket.c)
+target_link_libraries(socket logging)
+add_library(execute_scripts srclib/execute_scripts/execute_scripts.c)
+target_link_libraries(execute_scripts logging)
+add_library(dynamic_buffer srclib/dynamic_buffer/dynamic_buffer.c)
+target_link_libraries(dynamic_buffer logging)
+
+add_executable(rask src/server.c src/connection_handler.c srclib/picohttpparser/picohttpparser.c src/thread_pool.c src/config_parser.c src/request.c src/response.c)
+
 target_link_libraries(rask logging)
+target_link_libraries(rask string)
+target_link_libraries(rask socket)
+target_link_libraries(rask execute_scripts)
+target_link_libraries(rask dynamic_buffer)
+
+find_package(Threads REQUIRED)
 target_link_libraries(rask ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(rask m)
+
 if (APPLE)
     target_link_libraries(rask ${CONFUSE_LIB})
 else()
