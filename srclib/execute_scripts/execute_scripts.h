@@ -9,7 +9,7 @@
  * @param path
  * @param stdin_args
  * @param len_stdin_args
- * @param timeout
+ * @param timeout: if it is smaller than 1 it will wait until the script is finished
  * @return dynamic buffer with the script output
  */
 DynamicBuffer *execute_python_script(char *path, struct string stdin_args, int timeout);
@@ -19,7 +19,7 @@ DynamicBuffer *execute_python_script(char *path, struct string stdin_args, int t
  * @param path
  * @param stdin_args
  * @param len_stdin_args
- * @param timeout
+ * @param timeout: if it is smaller than 1 it will wait until the script is finished
  * @return dynamic buffer with the script output
  */
 DynamicBuffer *execute_php_script(char *path, struct string stdin_args, int timeout);

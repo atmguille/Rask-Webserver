@@ -11,9 +11,8 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#define ERROR_BODY_LEN 24
 #define DATE_SIZE 40
-#define GENERAL_SIZE 100
+#define ETAG_SIZE 100
 
 #define MATCH(actual_extension, type) if (strcmp(extension, actual_extension) == 0) {return type;}
 
@@ -27,17 +26,17 @@
  */
 void _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int status_code, char *message) {
     char current_date[DATE_SIZE];
-    char response_line[GENERAL_SIZE];
 
     // Get current date
     time_t now = time(0);
     struct tm tm = *gmtime(&now);
     strftime(current_date, sizeof(current_date), "%a, %d %b %Y %H:%M:%S %Z", &tm);
 
-    sprintf(response_line, "HTTP/1.1 %d %s\r\n", status_code, message);
-
-    dynamic_buffer_append_string(db, response_line);
-    dynamic_buffer_append_string(db, "Date: ");
+    dynamic_buffer_append_string(db, "HTTP/1.1 ");
+    dynamic_buffer_append_number(db, status_code);
+    dynamic_buffer_append_string(db, " ");
+    dynamic_buffer_append_string(db, message);
+    dynamic_buffer_append_string(db, "\r\nDate: ");
     dynamic_buffer_append_string(db, current_date);
     dynamic_buffer_append_string(db, "\r\nServer: ");
     dynamic_buffer_append_string(db, server_attrs->signature);
@@ -53,8 +52,8 @@ void _add_common_headers(DynamicBuffer *db, struct config *server_attrs, int sta
  * @return
  */
 int _response_error(int client_fd, struct config *server_attrs, int status_code, char *message) {
-    char body[GENERAL_SIZE];
-
+    char body_1[] = "<!DOCTYPE html><h1>";
+    char body_2[] = "</h1>";
     DynamicBuffer *db = (DynamicBuffer *)dynamic_buffer_ini(DEFAULT_INITIAL_CAPACITY);
     if (db == NULL) {
         print_error("failed to allocate memory for dynamic buffer");
@@ -63,12 +62,14 @@ int _response_error(int client_fd, struct config *server_attrs, int status_code,
 
     _add_common_headers(db, server_attrs,status_code, message);
 
-    sprintf(body, "<!DOCTYPE html><h1>%s</h1>\r\n", message);
-
     dynamic_buffer_append_string(db, "Content-Type: text/html; charset=UTF-8\r\nContent-Length: ");
-    dynamic_buffer_append_number(db, (ERROR_BODY_LEN + strlen(message)));
+    dynamic_buffer_append_number(db, (strlen(body_1) + strlen(message) + strlen(body_2)));
     dynamic_buffer_append_string(db, "\r\nConnection: close\r\n\r\n");
-    dynamic_buffer_append_string(db, body);
+
+    dynamic_buffer_append_string(db, body_1);
+    dynamic_buffer_append_string(db, message);
+    dynamic_buffer_append_string(db, body_2);
+
 
     if (socket_send(client_fd, dynamic_buffer_get_buffer(db), dynamic_buffer_get_size(db)) < 0) {
         print_error("failed to send");
@@ -280,8 +281,8 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     size_t file_size;
     size_t bytes_read;
     long last_modified;
-    char c_last_modified[GENERAL_SIZE]; // TODO: GENERAL SIZE???
-    char etag[GENERAL_SIZE];
+    char c_last_modified[DATE_SIZE];
+    char etag[ETAG_SIZE];
     FILE* f;
     DynamicBuffer *db;
 
@@ -340,7 +341,7 @@ int response_get(int client_fd, struct config *server_attrs, struct request *req
     struct string header;
     request_get_header(request, &header, "If-None-Match");
 
-    snprintf(etag, GENERAL_SIZE, "%ld%.*s", last_modified, (int)request->path.size, request->path.data);
+    snprintf(etag, ETAG_SIZE, "%ld%.*s", last_modified, (int)request->path.size, request->path.data);
 
     if (string_is_equal_to(header, etag)) {
         _add_common_headers(db, server_attrs, 304, "Not Modified");
