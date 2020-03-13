@@ -197,7 +197,7 @@ void *_worker_function(void *args) {
  */
 void _grow_pool(ThreadPool *pool) {
     int i;
-    int goal = ceil(1.5 * pool->n_spawned_threads); //TODO: cuantos creamos cada vez?
+    int goal = ceil(1.5 * pool->n_spawned_threads);
 
     if (pool->n_spawned_threads == pool->max_threads) {
         print_warning("cannot spawn more than %d threads...", pool->max_threads);
@@ -226,7 +226,7 @@ void _grow_pool(ThreadPool *pool) {
  */
 void _shrink_pool(ThreadPool *pool) {
     int i;
-    int goal = ceil(0.75 * pool->n_spawned_threads); //TODO: cuantos matamos cada vez?
+    int goal = ceil(0.75 * pool->n_spawned_threads);
 
     if (goal < INITIAL_THREADS || goal == pool->n_spawned_threads) {
         return;
@@ -259,7 +259,7 @@ void *_watcher_function(void *args) {
 
         pthread_mutex_lock(&t_pool->watcher_mutex);
 
-        if (executing_threads > (0.75 * t_pool->n_spawned_threads)) { // TODO: configurar rango
+        if (executing_threads > (0.75 * t_pool->n_spawned_threads)) {
             _grow_pool(t_pool);
         } else if (executing_threads < (0.25 * t_pool->n_spawned_threads)) {
             _shrink_pool(t_pool);
