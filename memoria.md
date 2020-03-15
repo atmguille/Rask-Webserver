@@ -56,11 +56,11 @@ Se copiará todo el contenido de `./www` a `/var/www`. Este es el directorio que
 
 #### Archivo de unidad para systemd
 
-Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la distribución de Linux soporta systemd.
+Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la distribución de Linux soporta systemd. Con respecto al contenido de este archivo, una de las lineas se encuentra comentada. Esto se debe a que usa funcionalidad de la versión 244 de `systemd`, que quizás no esté instalada en el sistema todavía (fue publicada el 29 de noviembre de 2019). Esta línea indica a `systemd` qué señal debe mandar al proceso cuando ejecutamos un `restart`, inicializándola a `SIGINT`, señal que nuestro proceso interpreta como un `soft kill` (explicado una líneas más arriba). Cabe comentar que si está línea se descomenta y la versión de `systemd` es anterior a la 244, simplemente es ignorada y salta un warning, pero no afecta a la funcionalidad.
 
 ### Demonio
 
-Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar. TODO: guillote, si logras hacer eso sin actualizar systemd explicalo aquí
+Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar.
 
 ### Librerías
 
@@ -122,4 +122,4 @@ y `post.py` contiene una petición post con datos en el body.
 
 ## Conclusiones
 
-TODO
+Este proyecto ha sido una de las prácticas más completa a la que nos hemos enfretado desde que empezamos la carrera. Ha requerido un esfuerzo extra en distintos planos, tanto en el programador como en cuanto a organización. Con respecto al primero, programar en C siempre requiere un plus, y más al tratarse de un proyecto tan grande. Además, la libertad que se nos ha dado para desarrollar esta práctica ha requerido muchas horas de leer documentación y artículos de internet, pero es sin duda una forma diferente de aprender conceptos y técnicas de programación. En línea con esta libertad de implementación, hemos tenido que planificar de forma especial la organización y estructura del proyecto, dedicando una parte importante del tiempo a esta faceta antes de programar. Por otro lado, consideramos que el hecho de haber sido "forzados" a usar git es muy positivo para nosotros, ya que veníamos usándolo para otras prácticas pero sin tomarnos en serio la estructura. Ahora, hemos aprendido a distribuir el desarrollo en distintas ramas, hemos usado nuevos comandos útiles... Por último, hemos podido aplicar los conocimientos aprendidos en las clases teóricas, pudiendo interiorizarlos mejor y observando en qué consisten en la realidad. En definitiva, esta práctica ha sido muy positiva para nuestro aprendizaje. 
