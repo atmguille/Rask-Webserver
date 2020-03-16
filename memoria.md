@@ -117,8 +117,11 @@ Finalmente, el main del servidor se encuentra en `server.c`.
 - Las cabeceras del código fuente se encuentran en el directorio includes. Además, aquí se encuentra el archivo `utils.h`, que contiene 
 diversas macros con códigos de estado de peticiones o respuestas, necesarios en múltiples ficheros.
 
-- Algunos tests desarrollados se encuentran en la carpeta tests, donde `client.py` se ha implementado para realizar diversas pruebas de estrés a nuestro servidor
-y `post.py` contiene una petición post con datos en el body.
+## Tests
+De los diversos tests que hemos ido realizando a lo largo de esta práctica sólo nos ha parecido relevante incluir un test de estrés desarrollado en Python, `tests/client.py`. Dicho test abre `num_threads` conexiones paralelas y desde cada una de ellas se descarga un fichero `messages_per_thread` veces. Todos los archivos descargados se guardan en la carpeta `tests/received` con nombres aleatorios para que no haya colisiones. Para probarlo simplemente hay que configurar 3 variables:
+  - SERVER_ADDRESS: por defecto está `localhost`, pero se puede poner una IP como *string*
+  - SERVER_PORT: por defecto está el puerto 8080
+  - RESOURCE: es el archivo que se descargará 
 
 ## Conclusiones
 
