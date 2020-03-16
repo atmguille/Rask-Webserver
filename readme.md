@@ -1,7 +1,7 @@
 # Rask Web Server
 ## Installation
 ### Requirements
-To compile this server you will need CMake (version 3.10) and the library `libconfuse`.
+To compile this server you will need CMake (version 3.10 or above) and the library `libconfuse`.
 #### How to install libconfuse on Debian
 ```bash
 sudo apt install libconfuse-dev
@@ -17,7 +17,7 @@ Run `sudo make install` to compile the server and install it on the system.
 ##### How to start the server
 Run `rask` from a terminal. 
 ##### How to stop the server
-Stop it using `CTRL + C` to perform soft stop. To stop it immediately you should run 
+Stop it using `CTRL + C` to perform soft stop. To stop it immediately you should open another terminal and run 
 ```bash
 killall -SIGTERM rask
 ```
@@ -40,7 +40,7 @@ sudo systemctl restart rask
 ```
 ### Customizing the server
 
-The user could set the value of some variables if wanted, editing `rask.conf` in `files` directory. These are those variables:
+The user can customize the value of some variables if wanted, editing `files/rask.conf`. Note that you should edit this file before installing the server. Otherwise, you should edit the file `/etc/rask/rask.conf` instead. These are those variables:
 
 - **signature**: name of the server.
 - **base_path**: path where the available server files are located.
