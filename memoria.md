@@ -29,7 +29,7 @@ Este paso puede considerarse como uno de los más importantes del proyecto, ya q
      | 500                 | 8.6 MiB       |
      | 1000                | 16.6 MiB      |
 
-     Como comparación,  `Apache` en su configuración por defecto y en *idle* también usa aproximadamente 8 MiB de memoria RAM.
+     Como comparación,  `Apache` en su configuración por defecto y en *idle* usa aproximadamente 8 MiB de memoria RAM. Por esto decidimos que nuestro servidor por defecto crease 100 *threads* y pudiese aumentar esta cantidad hasta llegar a los 1000.
 
  Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del *pool* (el `watcher_thread`), que cada cierto tiempo comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande, ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación. Cabe mencionar también que el *pool* tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato todas las conexiones o bien esperar a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un *restart* o a un *stop* de un servicio, siendo el *restart* el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y el *stop* el modo `hard` (necesitamos que el servicio pare de inmediato).
 
