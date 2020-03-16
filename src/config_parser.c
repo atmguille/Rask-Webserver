@@ -18,7 +18,7 @@ struct config *config_load(char *config_file_name) {
      * cfg_getint(), this is not a problem as the data types are implicitly
      * cast.
      */
-    long int max_clients;
+    long int max_connections;
     long int listen_port;
     long int script_timeout;
     long int socket_timeout;
@@ -35,7 +35,7 @@ struct config *config_load(char *config_file_name) {
             CFG_SIMPLE_STR("base_path", &server_attrs->base_path),
             CFG_SIMPLE_STR("default_path", &server_attrs->default_path),
             CFG_SIMPLE_STR("log_priority", &log_priority),
-            CFG_SIMPLE_INT("max_clients", &max_clients),
+            CFG_SIMPLE_INT("max_connections", &max_connections),
             CFG_SIMPLE_INT("listen_port", &listen_port),
             CFG_SIMPLE_INT("script_timeout", &script_timeout),
             CFG_SIMPLE_INT("socket_timeout", &socket_timeout),
@@ -55,7 +55,7 @@ struct config *config_load(char *config_file_name) {
     }
     cfg_free(cfg);
     // Cast is done here to avoid doing casts elsewhere
-    server_attrs->max_clients = (int) max_clients;
+    server_attrs->max_connections = (int) max_connections;
     server_attrs->listen_port = (int) listen_port;
     server_attrs->script_timeout = (int) script_timeout;
     if (socket_timeout <  0) {
@@ -86,7 +86,7 @@ struct config *config_load(char *config_file_name) {
     print_debug("  base_path: %s", server_attrs->base_path);
     print_debug("  default_path: %s", server_attrs->default_path);
     print_debug("  log_priority: %s", log_priority == NULL ? "INFO" : log_priority);
-    print_debug("  max_clients: %d", server_attrs->max_clients);
+    print_debug("  max_connections: %d", server_attrs->max_connections);
     print_debug("  listen_port: %d", server_attrs->listen_port);
     print_debug("  script_timeout: %d", server_attrs->script_timeout);
     print_debug("  socket_timeout: %d", server_attrs->socket_timeout);

@@ -8,7 +8,7 @@ struct config {
     char *signature;
     char *base_path;
     char *default_path;
-    int max_clients;
+    int max_connections;
     int listen_port;
     int log_priority;
     int script_timeout;

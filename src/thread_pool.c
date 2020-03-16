@@ -30,7 +30,7 @@ void *_worker_function(void *args);
 ThreadPool *thread_pool_ini(int socket_fd, struct config *server_attrs) {
     ThreadPool* pool;
     int i;
-    int max_threads = server_attrs->max_clients;
+    int max_threads = server_attrs->max_connections;
 
     if (max_threads < 1) {
         print_error("maximum number of clients must be greater or equal to 1");

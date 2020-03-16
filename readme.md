@@ -46,7 +46,7 @@ The user can customize the value of some variables if wanted, editing `files/ras
 - **base_path**: path where the available server files are located.
 - **default_path**: path to be followed if the client does not specify one.
 - **log_priority**: log level. Can be set to DEBUG, INFO, WARNING, ERROR or CRITICAL. If other option is written, log_priority will be set to INFO.
-- **max_clients**: maximum number of clients that the server can handle simultaneously.
+- **max_connections**: maximum number of simultaneous connections the server can handle.
 - **listen_port**: port where the server will listen for connections.
 - **script_timeout**: maximum number of seconds that a script will run. If timeout is reached, script will be killed. If set to a value < 0, there will be no timeout.
 - **socket_timeout**: maximum number of seconds that the server will wait for a client to write in the socket. If timeout is reached, the connection is closed. If set to a value < 0, there will be no timeout.
