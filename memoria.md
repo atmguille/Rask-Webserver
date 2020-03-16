@@ -60,8 +60,7 @@ Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la dis
 
 ### Demonio
 
-Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar.
-
+Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar. No obstante, en `srclib/daemon` se encuentra el código que escribimos en un primero momento. Cabe mencionar que usar `systemd` tiene un aspecto negativo, y es que aunque actualmente la gran mayoría de distribuciones de Linux usan este sistema de inicio, no es demasiado portable. Es por esto que queda como tarea pendiente para futuras versiones del servidor el soportar otros sistemas de inicio, como `launchd` de Apple, o usar el código que desarrollamos al empezar la práctica en aquellos entornos que no dispongan de `systemd` ni `launchd`.
 ### Librerías
 
 En `srclib` se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
