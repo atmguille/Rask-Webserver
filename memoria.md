@@ -101,12 +101,13 @@ Esta librería es una abstracción de un *buffer* dinámico, esto es, un *buffer
 En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar en formato `url-encode`, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde la web. Se considera además que se solicita la ejecución de un script a través de `GET`cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Not Implemented).
 
 ### Códigos de respuesta HTTP
-Se han desarrollado los siguientes códigos de respuesta HTTP:
-1. 400 Bad Request: se devuelve en caso de error al parsear la respuesta por la librería `picohttpparser` o si se intenta acceder a directorios no autorizados
-2. 400 Bad Request - Request Too Long: se devuelve en caso de request demasiado larga.
-3. 404 Not Found: se devuelve si el recurso solicitado no se encuentra.
-4. 500 Internal Server Error: se devuelve en caso de error interno del servidor de cualquier tipo.
-5. 501 Not Implemented: se devuelve en caso de solicitar un método no soportado, de solicitar la ejecución de un script de extensión no soportada o de solicitar un archivo de extensión no soportada.
+Es importante comentar que la implementación de nuevos códigos de respuesta de error, con la abstracción actual, consistiría simplemente en llamadas a `_response_error` indicando código y mensaje. Por el momento se han desarrollado los siguientes códigos de respuesta HTTP:
+1. 200 OK: se devuelve si la operación ha sido realizada con éxito.
+2. 400 Bad Request: se devuelve en caso de error al parsear la respuesta por la librería `picohttpparser` o si se intenta acceder a directorios no autorizados
+3. 400 Bad Request - Request Too Long: se devuelve en caso de request demasiado larga.
+4. 404 Not Found: se devuelve si el recurso solicitado no se encuentra.
+5. 500 Internal Server Error: se devuelve en caso de error interno del servidor de cualquier tipo.
+6. 501 Not Implemented: se devuelve en caso de solicitar un método no soportado, de solicitar la ejecución de un script de extensión no soportada o de solicitar un archivo de extensión no soportada.
 
 ## Organización y estructura de módulos
 
