@@ -1,6 +1,6 @@
 # Rask Web Server
 ## Introducción
-En esta primera práctica se ha implementado de un servidor web en C,
+En esta primera práctica se ha implementado un servidor web en C,
 basado en el protocolo HTTP/1.1 (conexiones persistentes, sin pipelining).
 Procedemos a describir los rasgos más importantes de este proyecto, desde las
 decisiones de diseño hasta la estructura del código.
@@ -99,7 +99,15 @@ Esta librería es una abstracción de un *buffer* dinámico, esto es, un *buffer
 
 ### Scripts
 
-En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar en formato `url-encode`, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde la web. Se considera además que se solicita la ejecución de un script a través de `GET`cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Not Implemented)
+En relación con los scripts que ejecuta el servidor, realizamos los scripts propuestos en Python, que se encargan de gestionar los argumentos recibidos por entrada estándar en formato `url-encode`, y se pueden ejecutar tanto con el método `GET` como con el método `POST`. Añadimos al `index.html` un campo y un botón para poder ejecutarlos desde la web. Se considera además que se solicita la ejecución de un script a través de `GET`cuando el archivo solicitado tiene una extensión ejecutable (`.py` o `.php`), sin importar si se recibe argumentos o no. En cuanto a `POST`, consideramos que siempre se nos va a solicitar ejecutar un script (si no es de extensión ejecutable se responde con Not Implemented).
+
+### Códigos de respuesta HTTP
+Se han desarrollado los siguientes códigos de respuesta HTTP:
+1. 400 Bad Request: se devuelve en caso de error al parsear la respuesta por la librería `picohttpparser` o si se intenta acceder a directorios no autorizados
+2. 400 Bad Request - Request Too Long: se devuelve en caso de request demasiado larga.
+3. 404 Not Found: se devuelve si el recurso solicitado no se encuentra.
+4. 500 Internal Server Error: se devuelve en caso de error interno del servidor de cualquier tipo.
+5. 501 Not Implemented: se devuelve en caso de solicitar un método no soportado, de solicitar la ejecución de un script de extensión no soportada o de solicitar un archivo de extensión no soportada.
 
 ## Organización y estructura de módulos
 
@@ -107,7 +115,7 @@ En relación con los scripts que ejecuta el servidor, realizamos los scripts pro
   medida a las variantes de implementación del servidor, es decir, se ha intentado que fueran archivos que pudieran ser usados en cualquier otro proyecto,
   independientemente de las características del mismo. Cumplen su función sin depender del resto de módulos.
   
-- Los ficheros que el servidor ofrece a sus clientes se encuentran en el directorio wwww, organizado en las carpetas media y scripts.
+- Los ficheros que el servidor ofrece a sus clientes se encuentran en el directorio www, organizado en las carpetas media y scripts.
 
 - El código fuente principal del servidor, encargado de la gestión, se encuentra en la carpeta src. Estos son los archivos dedicados a parsear 
 el fichero de configuración del servidor, el archivo que gestiona el thread pool (en este directorio pues depende de la implementación del servidor), 
