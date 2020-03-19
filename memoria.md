@@ -29,7 +29,7 @@ Este paso puede considerarse como uno de los más importantes del proyecto, ya q
      | 500                 | 8.6 MiB       |
      | 1000                | 16.6 MiB      |
 
-     Como comparación,  `Apache` en su configuración por defecto y en *idle* también usa aproximadamente 8 MiB de memoria RAM.
+     Como comparación,  `Apache` en su configuración por defecto y en *idle* usa aproximadamente 8 MiB de memoria RAM. Por esto decidimos que nuestro servidor por defecto crease 100 *threads* y pudiese aumentar esta cantidad hasta llegar a los 1000.
 
  Pasando a la implementación concreta, la gestión la lleva a cabo un hilo aparte dentro del *pool* (el `watcher_thread`), que cada cierto tiempo comprueba cuántos hilos se encuentran ocupados, determinando si es necesario crear más o destruir algunos de los existentes. Este tiempo no debe ser muy grande, ya que necesitamos reaccionar rápido a sobrecargas repentinas. Además, no consume apenas recursos realizar esta comprobación. Cabe mencionar también que el *pool* tiene dos formas de destruirse, `soft` y `hard`, para poder cerrar de inmediato todas las conexiones o bien esperar a que los hilos acaben de atender las peticiones activas en ese momento para cerrar después. Esto lo asociamos a un *restart* o a un *stop* de un servicio, siendo el *restart* el modo `soft` (necesitamos que el servicio vuelva a levantarse, pero preferimos no cortar transmisiones), y el *stop* el modo `hard` (necesitamos que el servicio pare de inmediato).
 
@@ -60,8 +60,7 @@ Se copiará el fichero `./files/rask.service` a `/lib/systemd/system/` si la dis
 
 ### Demonio
 
-Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar.
-
+Inicialmente implementamos el demonio según el libro de referencia (Unix Networking Programming), pero posteriormente acabamos por emplear `systemd` en Linux, por ser más sencillo, moderno y cómodo de utilizar. No obstante, en `srclib/daemon` se encuentra el código que escribimos en un primero momento. Cabe mencionar que usar `systemd` tiene un aspecto negativo, y es que aunque actualmente la gran mayoría de distribuciones de Linux usan este sistema de inicio, no es demasiado portable. Es por esto que queda como tarea pendiente para futuras versiones del servidor el soportar otros sistemas de inicio, como `launchd` de Apple, o usar el código que desarrollamos al empezar la práctica en aquellos entornos que no dispongan de `systemd` ni `launchd`.
 ### Librerías
 
 En `srclib` se encuentran los archivos con funcionalidad independiente al servidor. En algunos de ellos, se han tomado decisiones importantes:
@@ -125,9 +124,12 @@ Finalmente, el main del servidor se encuentra en `server.c`.
 - Las cabeceras del código fuente se encuentran en el directorio includes. Además, aquí se encuentra el archivo `utils.h`, que contiene 
 diversas macros con códigos de estado de peticiones o respuestas, necesarios en múltiples ficheros.
 
-- Algunos tests desarrollados se encuentran en la carpeta tests, donde `client.py` se ha implementado para realizar diversas pruebas de estrés a nuestro servidor
-y `post.py` contiene una petición post con datos en el body.
+## Tests
+De los diversos tests que hemos ido realizando a lo largo de esta práctica sólo nos ha parecido relevante incluir un test de estrés desarrollado en Python, `tests/client.py`. Dicho test abre `num_threads` conexiones paralelas y desde cada una de ellas se descarga un fichero `messages_per_thread` veces. Todos los archivos descargados se guardan en la carpeta `tests/received` con nombres aleatorios para que no haya colisiones. Para probarlo simplemente hay que configurar 3 variables:
+  - SERVER_ADDRESS: por defecto está `localhost`, pero se puede poner una IP como *string*
+  - SERVER_PORT: por defecto está el puerto 8080
+  - RESOURCE: es el archivo que se descargará 
 
 ## Conclusiones
 
-Este proyecto ha sido una de las prácticas más completa a la que nos hemos enfretado desde que empezamos la carrera. Ha requerido un esfuerzo extra en distintos planos, tanto en el programador como en cuanto a organización. Con respecto al primero, programar en C siempre requiere un plus, y más al tratarse de un proyecto tan grande. Además, la libertad que se nos ha dado para desarrollar esta práctica ha requerido muchas horas de leer documentación y artículos de internet, pero es sin duda una forma diferente de aprender conceptos y técnicas de programación. En línea con esta libertad de implementación, hemos tenido que planificar de forma especial la organización y estructura del proyecto, dedicando una parte importante del tiempo a esta faceta antes de programar. Por otro lado, consideramos que el hecho de haber sido "forzados" a usar git es muy positivo para nosotros, ya que veníamos usándolo para otras prácticas pero sin tomarnos en serio la estructura. Ahora, hemos aprendido a distribuir el desarrollo en distintas ramas, hemos usado nuevos comandos útiles... Por último, hemos podido aplicar los conocimientos aprendidos en las clases teóricas, pudiendo interiorizarlos mejor y observando en qué consisten en la realidad. En definitiva, esta práctica ha sido muy positiva para nuestro aprendizaje. 
+Este proyecto ha sido una de las prácticas más completas a la que nos hemos enfrentado desde que empezamos la carrera. Ha requerido un esfuerzo extra tanto en el plano de la programación como en el de la organización. Con respecto al primero, programar en un lenguaje de bajo nivel como C siempre es una tarea tediosa, y más al tratarse de un proyecto tan grande. Además, la libertad que se nos ha dado para desarrollar esta práctica nos ha hecho emplear muchas horas en leer documentación y artículos de internet, pero es sin duda una forma diferente de aprender. En línea con esta libertad de implementación, hemos tenido que planificar de forma especial la organización y estructura del proyecto, dedicando una parte importante del tiempo a esta faceta antes de programar. Por otro lado, consideramos que el hecho de haber sido "forzados" a usar git es muy positivo para nosotros, ya que veníamos usándolo para otras prácticas pero sin tomarnos en serio la estructura. Ahora, hemos aprendido a distribuir el desarrollo en distintas ramas, a usar más funcionalidades... Por último, hemos podido aplicar los conocimientos aprendidos en las clases teóricas, pudiendo interiorizarlos mejor y observando en qué consisten en la realidad. En definitiva, esta práctica ha sido muy positiva para nuestro aprendizaje. 

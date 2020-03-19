@@ -1,9 +1,5 @@
 import sys
-import signal
 from urllib.parse import parse_qs
-TIMEOUT = 1 # seconds
-signal.signal(signal.SIGALRM, input)
-signal.alarm(TIMEOUT)
 
 params = parse_qs(sys.stdin.read())
 
