@@ -1,4 +1,8 @@
 # Rask Web Server
+This project has been developed as part of the subject Communication Networks II, along with [Daniel Gallo Fernández](https://github.com/daniel-gallo).
+
+The main purpose of the project was to develop a Web Server in C that could response to clients optimizely in terms of time, resources, ... To do that, it runs upon a dynamic pool of threads, which is able to quickly adapt to different degrees of demand.
+
 ## Installation
 ### Requirements
 To compile this server you will need CMake (version 3.10 or above) and the library `libconfuse`.
