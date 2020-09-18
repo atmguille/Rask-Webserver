@@ -3,7 +3,7 @@ This project has been developed as part of the subject Communication Networks II
 
 The main purpose of the project was to develop a Web Server in C that could response to clients optimizely in terms of time, resources, ... To do that, it runs upon a dynamic pool of threads, which is able to quickly adapt to different degrees of demand.
 
-For more detailed info in this and other matters, you can check the Spanish version of the [Wiki](https://github.com/atmguille/Rask-Webserver/wiki) of this project.
+For more detailed info in this and other matters, you can check the Spanish version of the [Wiki](https://github.com/atmguille/rask/wiki) of this project.
 
 ## Installation
 ### Requirements
